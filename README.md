@@ -8,9 +8,11 @@ Built with Next.js and Material-UI.
 - 📅 **Schedule Recordings** - Set a start time and duration for RTSP stream recordings
 - ▶️ **Manual Control** - Start or stop recordings manually
 - 📊 **Dashboard** - View recording statistics and status at a glance
-- 👁️ **Live Preview** - Preview active streams with auto-refreshing snapshots
+- 👁️ **Live Preview & Viewer** - Preview active streams with auto-refreshing snapshots and watch recordings
+- 📺 **Stream Management** - Save and manage your RTSP streams for quick access
 - 🎬 **Hardware Acceleration** - NVIDIA (NVENC), Intel (QSV), and AMD (AMF) support
 - ⚙️ **Configurable Settings** - Customize codecs, formats, and output options
+- 🔒 **Authentication** - Optional Authentik OAuth2/OpenID Connect integration
 - 🐳 **Docker Ready** - Easy deployment with Docker and Docker Compose
 - 📥 **Download Recordings** - Download completed recordings directly from the UI
 
@@ -20,13 +22,19 @@ Built with Next.js and Material-UI.
 
 View recording statistics and recent activity
 
+![doc/dashboard.png](doc/dashboard.png)
+
 ### Recordings Page
 
 Manage all recordings with filtering, preview, and download options
 
+![doc/recordings.png](doc/recordings.png)
+
 ### Settings Page
 
 Configure hardware acceleration, codecs, storage, and preview options
+
+![doc/settings.png](doc/settings.png)
 
 ## Prerequisites
 
@@ -98,8 +106,12 @@ Configure hardware acceleration, codecs, storage, and preview options
 |-------------------------|------------------------------------|--------------------------|
 | `RECORDINGS_DB_PATH`    | Path to the JSON database file     | `./data/recordings.json` |
 | `SETTINGS_FILE_PATH`    | Path to the settings JSON file     | `./data/settings.json`   |
+| `STREAMS_FILE_PATH`     | Path to the streams JSON file      | `./data/streams.json`    |
 | `RECORDINGS_OUTPUT_DIR` | Directory for recorded video files | `./recordings`           |
 | `PORT`                  | Application port                   | `3000`                   |
+| `NEXTAUTH_SECRET`       | Secret for NextAuth.js (optional)  | -                        |
+| `NEXTAUTH_URL`          | Public URL for NextAuth (optional) | -                        |
+| `AUTH_DISABLED`         | Disable authentication (optional)  | `false`                  |
 
 ### Settings (via UI)
 
@@ -134,7 +146,7 @@ Access the Settings page to configure:
 **Preview Settings:**
 
 - Enable/disable live preview
-- Preview quality (320p, 640p, 1280p)
+- Preview quality (low, medium, high)
 - Snapshot refresh interval
 
 ### Docker Volumes
@@ -148,27 +160,45 @@ The Docker setup uses two persistent volumes:
 
 ### Recordings
 
-| Method   | Endpoint                            | Description                 |
-|----------|-------------------------------------|-----------------------------|
-| `GET`    | `/api/recordings`                   | Get all recordings          |
-| `GET`    | `/api/recordings?stats=true`        | Get recording statistics    |
-| `POST`   | `/api/recordings`                   | Create a new recording      |
-| `GET`    | `/api/recordings/[id]`              | Get a specific recording    |
+|  Method  | Endpoint                            | Description                 |
+|:--------:|-------------------------------------|-----------------------------|
+|  `GET`   | `/api/recordings`                   | Get all recordings          |
+|  `GET`   | `/api/recordings?stats=true`        | Get recording statistics    |
+|  `POST`  | `/api/recordings`                   | Create a new recording      |
+|  `GET`   | `/api/recordings/[id]`              | Get a specific recording    |
 | `PATCH`  | `/api/recordings/[id]`              | Update a recording          |
 | `DELETE` | `/api/recordings/[id]`              | Delete a recording          |
-| `POST`   | `/api/recordings/[id]?action=start` | Start a scheduled recording |
-| `POST`   | `/api/recordings/[id]?action=stop`  | Stop a running recording    |
-| `GET`    | `/api/recordings/[id]/preview`      | Get live stream preview     |
-| `GET`    | `/api/recordings/[id]/download`     | Download recorded file      |
+|  `POST`  | `/api/recordings/[id]?action=start` | Start a scheduled recording |
+|  `POST`  | `/api/recordings/[id]?action=stop`  | Stop a running recording    |
+|  `GET`   | `/api/recordings/[id]/preview`      | Get live stream preview     |
+|  `GET`   | `/api/recordings/[id]/stream`       | Stream recorded video       |
+|  `GET`   | `/api/recordings/[id]/download`     | Download recorded file      |
+
+### Streams
+
+|  Method  | Endpoint              | Description           |
+|:--------:|-----------------------|-----------------------|
+|  `GET`   | `/api/streams`        | Get all saved streams |
+|  `POST`  | `/api/streams`        | Create a new stream   |
+|  `GET`   | `/api/streams/[id]`   | Get a specific stream |
+| `PATCH`  | `/api/streams/[id]`   | Update a stream       |
+| `DELETE` | `/api/streams/[id]`   | Delete a stream       |
 
 ### Settings
 
 | Method  | Endpoint                    | Description                    |
-|---------|-----------------------------|--------------------------------|
-| `GET`   | `/api/settings`             | Get current settings           |
-| `GET`   | `/api/settings?hwinfo=true` | Get hardware acceleration info |
-| `PUT`   | `/api/settings`             | Save all settings              |
+|:-------:|:----------------------------|--------------------------------|
+|  `GET`  | `/api/settings`             | Get current settings           |
+|  `GET`  | `/api/settings?hwinfo=true` | Get hardware acceleration info |
+|  `PUT`  | `/api/settings`             | Save all settings              |
 | `PATCH` | `/api/settings`             | Update partial settings        |
+
+### Storage
+
+| Method | Endpoint        | Description                 |
+|:------:|:----------------|:----------------------------|
+| `GET`  | `/api/storage`  | Get storage statistics      |
+| `POST` | `/api/storage`  | Run storage cleanup process |
 
 ## Usage
 
@@ -204,45 +234,11 @@ The Docker setup uses two persistent volumes:
 
 - **Frontend:** Next.js 16, React 19, Material-UI 7
 - **Backend:** Next.js API Routes
+- **Authentication:** NextAuth.js v4 with Authentik OAuth2/OpenID Connect (optional)
 - **Recording:** FFmpeg with hardware acceleration
 - **Date Picker:** MUI X Date Pickers
 - **Storage:** JSON file-based database
 - **Container:** Nvidia/CUDA base image for hardware acceleration support + FFmpeg + Node.js
-
-## Project Structure
-
-```
-stream-recorder/
-├── src/
-│   ├── app/
-│   │   ├── api/
-│   │   │   ├── recordings/
-│   │   │   │   ├── route.ts
-│   │   │   │   └── [id]/
-│   │   │   │       ├── route.ts
-│   │   │   │       ├── preview/route.ts
-│   │   │   │       └── download/route.ts
-│   │   │   └── settings/
-│   │   │       └── route.ts
-│   │   ├── recordings/
-│   │   │   └── page.tsx
-│   │   ├── settings/
-│   │   │   └── page.tsx
-│   │   ├── layout.tsx
-│   │   └── page.tsx
-│   ├── lib/
-│   │   ├── recordings.ts
-│   │   └── settings.ts
-│   ├── types/
-│   │   ├── recording.ts
-│   │   └── settings.ts
-│   └── theme.ts
-├── data/               # Database and settings
-├── recordings/         # Recorded video files
-├── Dockerfile
-├── docker-compose.yml
-└── package.json
-```
 
 ## Hardware Acceleration Notes
 
