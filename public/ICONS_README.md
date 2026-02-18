@@ -62,8 +62,8 @@ async function convertSvg(inputPath, outputPath, size) {
   console.log(`✓ Created ${outputPath}`);
 }
 
-await convertSvg('src/app/icon.svg', 'public/icon-192.png', 192);
-await convertSvg('src/app/icon.svg', 'public/icon-512.png', 512);
+await convertSvg('public/icon-192.svg', 'public/icon-192.png', 192);
+await convertSvg('public/icon-512.svg', 'public/icon-512.png', 512);
 await convertSvg('src/app/icon.svg', 'public/apple-touch-icon.png', 180);
 EOF
 
@@ -73,17 +73,26 @@ rm generate-icons.mjs
 
 ### Using ImageMagick
 ```bash
-convert src/app/icon.svg -resize 192x192 public/icon-192.png
-convert src/app/icon.svg -resize 512x512 public/icon-512.png
+convert public/icon-192.svg -resize 192x192 public/icon-192.png
+convert public/icon-512.svg -resize 512x512 public/icon-512.png
 convert src/app/icon.svg -resize 180x180 public/apple-touch-icon.png
 ```
 
 ### Using Inkscape
 ```bash
-inkscape src/app/icon.svg --export-type=png --export-width=192 -o public/icon-192.png
-inkscape src/app/icon.svg --export-type=png --export-width=512 -o public/icon-512.png
+inkscape public/icon-192.svg --export-type=png --export-width=192 -o public/icon-192.png
+inkscape public/icon-512.svg --export-type=png --export-width=512 -o public/icon-512.png
 inkscape src/app/icon.svg --export-type=png --export-width=180 -o public/apple-touch-icon.png
 ```
+
+## Apple Touch Icon
+
+The 180x180 `apple-touch-icon.png` is the recommended size for modern iOS devices:
+- iPhone (Retina): 180x180
+- iPad (Retina): 167x167 (180x180 works fine)
+- iPad Pro: 180x180
+
+This single size provides excellent coverage for all iOS devices without needing multiple icon sizes.
 
 ## Web Manifest
 
