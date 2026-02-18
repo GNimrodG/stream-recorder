@@ -19,12 +19,12 @@
     <rect x="0" y="15" width="70" height="50" rx="5" fill="url(#cameraGradient)" stroke="#0d47a1" stroke-width="2"/>
     
     <!-- Lens -->
-    <circle cx="25" cy="40" r="15" fill="#424242" stroke="#212121" stroke-width="2"/>
-    <circle cx="25" cy="40" r="10" fill="#616161" stroke="#424242" stroke-width="1"/>
-    <circle cx="25" cy="40" r="6" fill="#1976d2" opacity="0.6"/>
+    <circle cx="25" cy="40" r="15" fill="#1a1a1a" stroke="#000000" stroke-width="2"/>
+    <circle cx="25" cy="40" r="10" fill="#2a2a2a" stroke="#1a1a1a" stroke-width="1"/>
+    <circle cx="25" cy="40" r="6" fill="#4a4a4a" opacity="0.8"/>
     
     <!-- Viewfinder -->
-    <rect x="50" y="25" width="15" height="30" rx="2" fill="#616161" stroke="#424242" stroke-width="1"/>
+    <rect x="50" y="25" width="15" height="30" rx="2" fill="#1a1a1a" stroke="#000000" stroke-width="1.5"/>
     
     <!-- Stream lines (indicating live/active) -->
     <path d="M 75 25 Q 85 25 85 30" stroke="#1976d2" stroke-width="2" fill="none" stroke-linecap="round"/>
