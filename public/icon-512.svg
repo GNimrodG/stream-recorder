@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg512" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1976d2;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0d47a1;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="rec512" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f44336;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#c62828;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="512" height="512" rx="96" fill="url(#bg512)"/>
+  
+  <!-- Video camera icon -->
+  <g transform="translate(80, 140)">
+    <!-- Camera body -->
+    <rect x="0" y="40" width="220" height="160" rx="16" fill="#ffffff" opacity="0.95"/>
+    
+    <!-- Lens -->
+    <circle cx="80" cy="120" r="48" fill="#0d47a1" opacity="0.8"/>
+    <circle cx="80" cy="120" r="30" fill="#1976d2" opacity="0.6"/>
+    
+    <!-- Viewfinder -->
+    <rect x="168" y="72" width="40" height="96" rx="8" fill="#e3f2fd"/>
+    
+    <!-- Stream indicator lines -->
+    <path d="M 232 80 L 260 80" stroke="#ffffff" stroke-width="10" stroke-linecap="round" opacity="0.9"/>
+    <path d="M 232 120 L 280 120" stroke="#ffffff" stroke-width="10" stroke-linecap="round" opacity="0.9"/>
+    <path d="M 232 160 L 260 160" stroke="#ffffff" stroke-width="10" stroke-linecap="round" opacity="0.9"/>
+  </g>
+  
+  <!-- Record button -->
+  <g transform="translate(288, 262)">
+    <!-- Outer ring with glow -->
+    <circle cx="80" cy="80" r="88" fill="url(#rec512)" opacity="0.3"/>
+    <circle cx="80" cy="80" r="80" fill="url(#rec512)"/>
+    
+    <!-- Inner circle -->
+    <circle cx="80" cy="80" r="40" fill="#ffffff"/>
+    
+    <!-- Recording indicator -->
+    <circle cx="80" cy="80" r="24" fill="#f44336">
+      <animate attributeName="opacity" values="1;0.3;1" dur="2s" repeatCount="indefinite"/>
+    </circle>
+  </g>
+</svg>

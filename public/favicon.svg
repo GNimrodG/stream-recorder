@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <defs>
+    <linearGradient id="favBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1976d2;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0d47a1;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="32" height="32" rx="6" fill="url(#favBg)"/>
+  
+  <!-- Simplified camera -->
+  <rect x="4" y="9" width="14" height="10" rx="1.5" fill="#ffffff" opacity="0.95"/>
+  
+  <!-- Lens -->
+  <circle cx="9" cy="14" r="3" fill="#0d47a1" opacity="0.8"/>
+  
+  <!-- Stream lines -->
+  <path d="M 19 10 L 21 10" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" opacity="0.9"/>
+  <path d="M 19 14 L 23 14" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" opacity="0.9"/>
+  <path d="M 19 18 L 21 18" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" opacity="0.9"/>
+  
+  <!-- Record button -->
+  <circle cx="22" cy="23" r="6" fill="#f44336" opacity="0.9"/>
+  <circle cx="22" cy="23" r="2.5" fill="#ffffff"/>
+  <circle cx="22" cy="23" r="1.5" fill="#f44336">
+    <animate attributeName="opacity" values="1;0.3;1" dur="2s" repeatCount="indefinite"/>
+  </circle>
+</svg>
