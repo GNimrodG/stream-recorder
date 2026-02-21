@@ -30,4 +30,9 @@ export const STATUS_CONFIG = {
     icon: <CancelIcon fontSize="small" />,
     label: "Cancelled",
   },
+  retrying: {
+    color: "warning" as const,
+    icon: <ScheduleIcon fontSize="small" />,
+    label: "Retrying",
+  },
 };

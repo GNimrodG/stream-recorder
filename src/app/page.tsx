@@ -28,11 +28,7 @@ import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import StopIcon from "@mui/icons-material/Stop";
 import DeleteIcon from "@mui/icons-material/Delete";
 import RefreshIcon from "@mui/icons-material/Refresh";
-import {
-  CreateRecordingDto,
-  Recording,
-  RecordingStats,
-} from "@/types/recording";
+import { CreateRecordingDto, Recording, RecordingStats } from "@/types/recording";
 import RecordingDialog from "@/components/RecordingDialog";
 import { formatDate, formatDuration } from "@/utils";
 import StatusDisplay from "@/components/StatusDisplay";
@@ -269,9 +265,7 @@ export default function Dashboard() {
                 <Typography color="text.secondary" gutterBottom variant="body2">
                   {card.title}
                 </Typography>
-                <Typography
-                  variant="h4"
-                  sx={{ fontWeight: "bold", color: card.color }}>
+                <Typography variant="h4" sx={{ fontWeight: "bold", color: card.color }}>
                   {loading ? <CircularProgress size={24} /> : card.value}
                 </Typography>
               </CardContent>
@@ -292,10 +286,7 @@ export default function Dashboard() {
           <Typography variant="h6" sx={{ fontWeight: "bold" }}>
             Recent Recordings
           </Typography>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => setDialogOpen(true)}>
+          <Button variant="contained" startIcon={<AddIcon />} onClick={() => setDialogOpen(true)}>
             New Recording
           </Button>
         </Box>
@@ -308,7 +299,7 @@ export default function Dashboard() {
                 <TableCell>RTSP URL</TableCell>
                 <TableCell>Start Time</TableCell>
                 <TableCell>Duration</TableCell>
-                <TableCell>Status</TableCell>
+                <TableCell sx={{ width: "30rem" }}>Status</TableCell>
                 <TableCell align="right">Actions</TableCell>
               </TableRow>
             </TableHead>
@@ -344,67 +335,25 @@ export default function Dashboard() {
                     <TableCell>{formatDate(recording.startTime)}</TableCell>
                     <TableCell>{formatDuration(recording.duration)}</TableCell>
                     <TableCell>
-                      <StatusDisplay status={recording.status} />
-
-                      {!!recording.fps && (
-                        <Typography
-                          variant="caption"
-                          color="text.secondary"
-                          sx={{ ml: 1 }}>
-                          {recording.fps} FPS
-                        </Typography>
-                      )}
-
-                      {!!recording.frameCount && (
-                        <Typography
-                          variant="caption"
-                          color="text.secondary"
-                          sx={{ ml: 1 }}>
-                          {recording.frameCount} frames
-                        </Typography>
-                      )}
-
-                      {!!recording.bitrate && (
-                        <Typography
-                          variant="caption"
-                          color="text.secondary"
-                          sx={{ ml: 1 }}>
-                          {recording.bitrate}
-                        </Typography>
-                      )}
-
-                      {!!recording.speed && (
-                        <Typography
-                          variant="caption"
-                          color="text.secondary"
-                          sx={{ ml: 1 }}>
-                          {recording.speed}x
-                        </Typography>
-                      )}
+                      <StatusDisplay recording={recording} />
                     </TableCell>
                     <TableCell align="right">
                       {recording.status === "scheduled" && (
                         <Tooltip title="Start Now">
-                          <IconButton
-                            color="success"
-                            onClick={() => handleStartRecording(recording.id)}>
+                          <IconButton color="success" onClick={() => handleStartRecording(recording.id)}>
                             <PlayArrowIcon />
                           </IconButton>
                         </Tooltip>
                       )}
-                      {recording.status === "recording" && (
+                      {(recording.status === "recording" || recording.status === "retrying") && (
                         <Tooltip title="Stop">
-                          <IconButton
-                            color="error"
-                            onClick={() => handleStopRecording(recording.id)}>
+                          <IconButton color="error" onClick={() => handleStopRecording(recording.id)}>
                             <StopIcon />
                           </IconButton>
                         </Tooltip>
                       )}
                       <Tooltip title="Delete">
-                        <IconButton
-                          color="error"
-                          onClick={() => handleDeleteRecording(recording.id)}>
+                        <IconButton color="error" onClick={() => handleDeleteRecording(recording.id)}>
                           <DeleteIcon />
                         </IconButton>
                       </Tooltip>
@@ -429,13 +378,8 @@ export default function Dashboard() {
       />
 
       {/* Snackbar */}
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={4000}
-        onClose={() => setSnackbar({ ...snackbar, open: false })}>
-        <Alert
-          severity={snackbar.severity}
-          onClose={() => setSnackbar({ ...snackbar, open: false })}>
+      <Snackbar open={snackbar.open} autoHideDuration={4000} onClose={() => setSnackbar({ ...snackbar, open: false })}>
+        <Alert severity={snackbar.severity} onClose={() => setSnackbar({ ...snackbar, open: false })}>
           {snackbar.message}
         </Alert>
       </Snackbar>

@@ -32,7 +32,6 @@ import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import StopIcon from "@mui/icons-material/Stop";
 import DeleteIcon from "@mui/icons-material/Delete";
 import RefreshIcon from "@mui/icons-material/Refresh";
-import ErrorIcon from "@mui/icons-material/Announcement";
 import DownloadIcon from "@mui/icons-material/Download";
 import PreviewIcon from "@mui/icons-material/Visibility";
 import EditIcon from "@mui/icons-material/Edit";
@@ -58,9 +57,7 @@ function RecordingsPageContent() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
-  const [selectedRecording, setSelectedRecording] = useState<Recording | null>(
-    null,
-  );
+  const [selectedRecording, setSelectedRecording] = useState<Recording | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
@@ -275,10 +272,7 @@ function RecordingsPageContent() {
     setPreviewDialogOpen(true);
   };
 
-  const filteredRecordings =
-    filterStatus === "all"
-      ? recordings
-      : recordings.filter((r) => r.status === filterStatus);
+  const filteredRecordings = filterStatus === "all" ? recordings : recordings.filter((r) => r.status === filterStatus);
 
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
@@ -302,14 +296,7 @@ function RecordingsPageContent() {
 
       {/* Filter Chips */}
       <Box sx={{ display: "flex", gap: 1, mb: 3, flexWrap: "wrap" }}>
-        {[
-          "all",
-          "scheduled",
-          "recording",
-          "completed",
-          "failed",
-          "cancelled",
-        ].map((status) => (
+        {["all", "scheduled", "recording", "completed", "failed", "cancelled", "retrying"].map((status) => (
           <Chip
             key={status}
             label={status.charAt(0).toUpperCase() + status.slice(1)}
@@ -356,7 +343,7 @@ function RecordingsPageContent() {
                 <TableCell>RTSP URL</TableCell>
                 <TableCell>Start Time</TableCell>
                 <TableCell>Duration</TableCell>
-                <TableCell>Status</TableCell>
+                <TableCell sx={{ width: "30rem" }}>Status</TableCell>
                 <TableCell>Output</TableCell>
                 <TableCell align="right">Actions</TableCell>
               </TableRow>
@@ -377,6 +364,7 @@ function RecordingsPageContent() {
               ) : (
                 filteredRecordings.map((recording) => (
                   <TableRow key={recording.id}>
+                    {/* Name */}
                     <TableCell>
                       <Typography variant="body2" fontWeight="medium">
                         {recording.name}
@@ -385,12 +373,13 @@ function RecordingsPageContent() {
                         Created: {formatDate(recording.createdAt)}
                       </Typography>
                     </TableCell>
+                    {/* RTSP URL with tooltip */}
                     <TableCell>
                       <Tooltip title={recording.rtspUrl}>
                         <Typography
                           variant="body2"
                           sx={{
-                            maxWidth: 150,
+                            maxWidth: 200,
                             overflow: "hidden",
                             textOverflow: "ellipsis",
                             whiteSpace: "nowrap",
@@ -399,23 +388,17 @@ function RecordingsPageContent() {
                         </Typography>
                       </Tooltip>
                     </TableCell>
+                    {/* Start Time */}
                     <TableCell>{formatDate(recording.startTime)}</TableCell>
+                    {/* Duration */}
                     <TableCell>{formatDuration(recording.duration)}</TableCell>
+                    {/* Status */}
                     <TableCell>
                       <Stack direction="row" alignItems="center">
-                        <StatusDisplay status={recording.status} />
-
-                        {recording.errorMessage && (
-                          <Tooltip title={recording.errorMessage}>
-                            <ErrorIcon
-                              color="error"
-                              fontSize="small"
-                              sx={{ ml: 1 }}
-                            />
-                          </Tooltip>
-                        )}
+                        <StatusDisplay recording={recording} />
                       </Stack>
                     </TableCell>
+                    {/* Output Path */}
                     <TableCell>
                       {recording.outputPath ? (
                         <Tooltip title={recording.outputPath}>
@@ -429,7 +412,7 @@ function RecordingsPageContent() {
                             <Typography
                               variant="caption"
                               sx={{
-                                maxWidth: 100,
+                                maxWidth: "30rem",
                                 overflow: "hidden",
                                 textOverflow: "ellipsis",
                                 whiteSpace: "nowrap",
@@ -444,6 +427,7 @@ function RecordingsPageContent() {
                         </Typography>
                       )}
                     </TableCell>
+                    {/* Actions */}
                     <TableCell align="right">
                       <Box
                         sx={{
@@ -453,10 +437,7 @@ function RecordingsPageContent() {
                         }}>
                         {recording.status === "recording" && (
                           <Tooltip title="Preview Stream">
-                            <IconButton
-                              color="info"
-                              size="small"
-                              onClick={() => handlePreviewClick(recording)}>
+                            <IconButton color="info" size="small" onClick={() => handlePreviewClick(recording)}>
                               <PreviewIcon />
                             </IconButton>
                           </Tooltip>
@@ -464,10 +445,7 @@ function RecordingsPageContent() {
                         {recording.status === "scheduled" && (
                           <>
                             <Tooltip title="Edit">
-                              <IconButton
-                                color="primary"
-                                size="small"
-                                onClick={() => handleEditClick(recording)}>
+                              <IconButton color="primary" size="small" onClick={() => handleEditClick(recording)}>
                                 <EditIcon />
                               </IconButton>
                             </Tooltip>
@@ -475,53 +453,40 @@ function RecordingsPageContent() {
                               <IconButton
                                 color="success"
                                 size="small"
-                                onClick={() =>
-                                  handleStartRecording(recording.id)
-                                }>
+                                onClick={() => handleStartRecording(recording.id)}>
                                 <PlayArrowIcon />
                               </IconButton>
                             </Tooltip>
                           </>
                         )}
-                        {recording.status === "recording" && (
+                        {(recording.status === "recording" || recording.status === "retrying") && (
                           <Tooltip title="Stop">
-                            <IconButton
-                              color="error"
-                              size="small"
-                              onClick={() => handleStopRecording(recording.id)}>
+                            <IconButton color="error" size="small" onClick={() => handleStopRecording(recording.id)}>
                               <StopIcon />
                             </IconButton>
                           </Tooltip>
                         )}
-                        {recording.status === "completed" &&
-                          recording.outputPath && (
-                            <>
-                              <Tooltip title="Watch">
-                                <IconButton
-                                  color="success"
-                                  size="small"
-                                  component="a"
-                                  href="/viewer">
-                                  <PlayCircleIcon />
-                                </IconButton>
-                              </Tooltip>
-                              <Tooltip title="Download">
-                                <IconButton
-                                  color="primary"
-                                  size="small"
-                                  component="a"
-                                  href={`/api/recordings/${recording.id}/download`}
-                                  download>
-                                  <DownloadIcon />
-                                </IconButton>
-                              </Tooltip>
-                            </>
-                          )}
+                        {recording.status === "completed" && recording.outputPath && (
+                          <>
+                            <Tooltip title="Watch">
+                              <IconButton color="success" size="small" component="a" href="/viewer">
+                                <PlayCircleIcon />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Download">
+                              <IconButton
+                                color="primary"
+                                size="small"
+                                component="a"
+                                href={`/api/recordings/${recording.id}/download`}
+                                download>
+                                <DownloadIcon />
+                              </IconButton>
+                            </Tooltip>
+                          </>
+                        )}
                         <Tooltip title="Delete">
-                          <IconButton
-                            color="error"
-                            size="small"
-                            onClick={() => handleDeleteRecording(recording.id)}>
+                          <IconButton color="error" size="small" onClick={() => handleDeleteRecording(recording.id)}>
                             <DeleteIcon />
                           </IconButton>
                         </Tooltip>
@@ -558,11 +523,7 @@ function RecordingsPageContent() {
       />
 
       {/* Preview Dialog */}
-      <Dialog
-        open={previewDialogOpen}
-        onClose={() => setPreviewDialogOpen(false)}
-        maxWidth="md"
-        fullWidth>
+      <Dialog open={previewDialogOpen} onClose={() => setPreviewDialogOpen(false)} maxWidth="md" fullWidth>
         <DialogTitle>Stream Preview: {selectedRecording?.name}</DialogTitle>
         <DialogContent>
           {selectedRecording && (
@@ -583,8 +544,8 @@ function RecordingsPageContent() {
             </Box>
           )}
           <Alert severity="info" sx={{ mt: 2 }}>
-            Live preview requires the stream to be actively recording. The
-            preview shows a snapshot of the current stream.
+            Live preview requires the stream to be actively recording. The preview shows a snapshot of the current
+            stream.
           </Alert>
         </DialogContent>
         <DialogActions>
@@ -593,13 +554,8 @@ function RecordingsPageContent() {
       </Dialog>
 
       {/* Snackbar */}
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={4000}
-        onClose={() => setSnackbar({ ...snackbar, open: false })}>
-        <Alert
-          severity={snackbar.severity}
-          onClose={() => setSnackbar({ ...snackbar, open: false })}>
+      <Snackbar open={snackbar.open} autoHideDuration={4000} onClose={() => setSnackbar({ ...snackbar, open: false })}>
+        <Alert severity={snackbar.severity} onClose={() => setSnackbar({ ...snackbar, open: false })}>
           {snackbar.message}
         </Alert>
       </Snackbar>

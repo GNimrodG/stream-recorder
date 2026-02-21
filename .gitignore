@@ -46,4 +46,6 @@ next-env.d.ts
 !/data/.gitkeep
 /recordings/*
 !/recordings/.gitkeep
+/logs/*
+!/logs/.gitkeep
 

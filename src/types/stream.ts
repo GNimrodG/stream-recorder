@@ -5,4 +5,5 @@ export interface SavedStream {
   description?: string;
   createdAt: string;
   updatedAt: string;
+  favorite?: boolean;
 }

@@ -1,15 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getRecordingById } from "@/lib/recordings";
-import { generateSnapshotArgs, loadSettings } from "@/lib/settings";
-import { spawn } from "child_process";
+import { captureSnapshot, getRecordingById } from "@/lib/recordings";
+import { loadSettings } from "@/lib/settings";
 import fs from "fs";
 import path from "path";
 import os from "os";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const recording = getRecordingById(id);
   const rawFrame = request.nextUrl.searchParams.get("raw") === "true";
@@ -20,10 +16,7 @@ export async function GET(
 
   if (recording.status !== "recording") {
     if (rawFrame) {
-      return NextResponse.json(
-        { error: "Stream is not active" },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: "Stream is not active" }, { status: 400 });
     }
 
     return new NextResponse(
@@ -47,10 +40,7 @@ export async function GET(
 
   if (!settings.previewEnabled) {
     if (rawFrame) {
-      return NextResponse.json(
-        { error: "Preview is disabled in settings" },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: "Preview is disabled in settings" }, { status: 400 });
     }
 
     return new NextResponse(
@@ -71,30 +61,7 @@ export async function GET(
   const snapshotPath = path.join(os.tmpdir(), `preview_${id}.jpg`);
 
   try {
-    await new Promise<void>((resolve, reject) => {
-      const args = generateSnapshotArgs(
-        recording.rtspUrl,
-        snapshotPath,
-        settings,
-      );
-      const ffmpeg = spawn(settings.ffmpegPath, args, { timeout: 10000 });
-
-      ffmpeg.on("close", (code) => {
-        if (code === 0) {
-          resolve();
-        } else {
-          reject(new Error(`FFmpeg exited with code ${code}`));
-        }
-      });
-
-      ffmpeg.on("error", reject);
-
-      // Timeout after 10 seconds
-      setTimeout(() => {
-        ffmpeg.kill();
-        reject(new Error("Snapshot timeout"));
-      }, 10000);
-    });
+    await captureSnapshot(recording.rtspUrl, snapshotPath);
 
     if (fs.existsSync(snapshotPath)) {
       const imageBuffer = fs.readFileSync(snapshotPath);
@@ -144,10 +111,7 @@ export async function GET(
   }
 
   if (rawFrame) {
-    return NextResponse.json(
-      { error: "Failed to capture preview" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Failed to capture preview" }, { status: 500 });
   }
 
   return new NextResponse(

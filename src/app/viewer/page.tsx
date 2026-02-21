@@ -66,8 +66,10 @@ export default function ViewerPage() {
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
+  const [isLoadingVideo, setIsLoadingVideo] = useState(true);
 
   const handleWatchVideo = (recording: Recording) => {
+    setIsLoadingVideo(true);
     setSelectedRecording(recording);
     setVideoDialogOpen(true);
     setIsPlaying(false);
@@ -312,7 +314,7 @@ export default function ViewerPage() {
                     {formatDate(recording.startTime)}
                   </Typography>
 
-                  <StatusDisplay status={recording.status} />
+                  <StatusDisplay recording={recording} />
                 </CardContent>
                 <CardActions>
                   {recording.status === "completed" && (
@@ -380,10 +382,31 @@ export default function ViewerPage() {
                 style={{ width: "100%", maxHeight: "70vh" }}
                 onTimeUpdate={handleTimeUpdate}
                 onLoadedMetadata={handleLoadedMetadata}
+                onLoadedData={() => setIsLoadingVideo(false)}
                 onPlay={() => setIsPlaying(true)}
                 onPause={() => setIsPlaying(false)}
                 onEnded={() => setIsPlaying(false)}
               />
+
+              {/* Loading indicator */}
+              {isLoadingVideo && (
+                <Box
+                  sx={{
+                    position: "absolute",
+                    top: "50%",
+                    left: "50%",
+                    transform: "translate(-50%, -50%)",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 2,
+                  }}>
+                  <CircularProgress color="primary" />
+                  <Typography variant="body2" color="white">
+                    Loading video...
+                  </Typography>
+                </Box>
+              )}
 
               {/* Video Controls */}
               <Box sx={{ p: 2, bgcolor: "rgba(0,0,0,0.8)" }}>
