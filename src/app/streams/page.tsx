@@ -41,11 +41,13 @@ import VideocamIcon from "@mui/icons-material/Videocam";
 import LinkIcon from "@mui/icons-material/Link";
 import StarIcon from "@mui/icons-material/Star";
 import RadioButtonCheckedIcon from "@mui/icons-material/RadioButtonChecked";
-import { SavedStream } from "@/types/stream";
+import { SavedStream, StreamStatusResult } from "@/types/stream";
 import { formatDate } from "@/utils";
+import StreamStatusChip from "@/components/StreamStatusChip";
 
 export default function StreamsPage() {
   const [streams, setStreams] = useState<SavedStream[]>([]);
+  const [streamStatuses, setStreamStatuses] = useState<Record<string, StreamStatusResult>>({});
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
@@ -90,6 +92,60 @@ export default function StreamsPage() {
   useEffect(() => {
     fetchStreams();
   }, [fetchStreams]);
+
+  const fetchStreamStatuses = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/streams/status`);
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch stream statuses");
+      }
+
+      const data = (await response.json()) as StreamStatusResult[];
+      const statusMap: Record<string, StreamStatusResult> = {};
+      data.forEach((status) => {
+        statusMap[status.id] = status;
+      });
+      setStreamStatuses(statusMap);
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: "Failed to check stream status: " + (error as Error).message,
+        severity: "error",
+      });
+    }
+  }, []);
+
+  // Fetch stream statuses on initial load and every 5 minutes
+  useEffect(() => {
+    fetchStreamStatuses();
+    const interval = setInterval(fetchStreamStatuses, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [fetchStreamStatuses]);
+
+  const [isFetchingStatus, setIsFetchingStatus] = useState(false);
+
+  const fetchStreamStatus = useCallback(async (id: string) => {
+    setIsFetchingStatus(true);
+    try {
+      const response = await fetch(`/api/streams/${id}/status`);
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch stream status");
+      }
+
+      const data = (await response.json()) as StreamStatusResult;
+      setStreamStatuses((prev) => ({ ...prev, [id]: data }));
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: "Failed to check stream status: " + (error as Error).message,
+        severity: "error",
+      });
+    } finally {
+      setIsFetchingStatus(false);
+    }
+  }, []);
 
   const handleOpenDialog = (stream?: SavedStream) => {
     if (stream) {
@@ -220,6 +276,65 @@ export default function StreamsPage() {
     }
   };
 
+  function CaptureSnapshotButton({ stream }: { stream: SavedStream }) {
+    const isLive = streamStatuses[stream.id]?.status === "live";
+    return (
+      <Tooltip title={isLive ? "Capture Snapshot" : "Stream is not live"}>
+        <span>
+          <IconButton
+            size="small"
+            color="success"
+            disabled={streamChecking || !isLive}
+            onClick={() => handleCheckStream(stream)}>
+            <VideoCameraBackIcon />
+          </IconButton>
+        </span>
+      </Tooltip>
+    );
+  }
+
+  function QuickRecordButton({ stream }: { stream: SavedStream }) {
+    return (
+      <Tooltip title="Schedule recording">
+        <span>
+          <IconButton size="small" color="error" onClick={() => handleQuickRecord(stream)}>
+            <RadioButtonCheckedIcon />
+          </IconButton>
+        </span>
+      </Tooltip>
+    );
+  }
+
+  function CopyUrlButton({ stream }: { stream: SavedStream }) {
+    return (
+      <Tooltip title="Copy RTSP URL">
+        <IconButton size="small" onClick={() => handleCopyUrl(stream.rtspUrl)}>
+          <ContentCopyIcon fontSize="small" />
+        </IconButton>
+      </Tooltip>
+    );
+  }
+
+  function EditButton({ stream }: { stream: SavedStream }) {
+    return (
+      <Tooltip title="Edit Stream">
+        <IconButton size="small" onClick={() => handleOpenDialog(stream)}>
+          <EditIcon fontSize="small" />
+        </IconButton>
+      </Tooltip>
+    );
+  }
+
+  function DeleteButton({ streamId }: { streamId: string }) {
+    return (
+      <Tooltip title="Delete Stream">
+        <IconButton size="small" color="error" onClick={() => handleDeleteStream(streamId)}>
+          <DeleteIcon fontSize="small" />
+        </IconButton>
+      </Tooltip>
+    );
+  }
+
   return (
     <>
       {/* Page Header */}
@@ -295,9 +410,12 @@ export default function StreamsPage() {
                           alignItems: "flex-start",
                           mb: 1,
                         }}>
-                        <Typography variant="h6" noWrap sx={{ flex: 1 }}>
-                          {stream.name}
-                        </Typography>
+                        <Stack direction="row" alignItems="center" spacing={1}>
+                          <Typography variant="h6" noWrap sx={{ flex: 1 }}>
+                            {stream.name}
+                          </Typography>
+                          {streamStatuses[stream.id] && <StreamStatusChip status={streamStatuses[stream.id]} />}
+                        </Stack>
                         <Chip label="RTSP" size="small" color="primary" variant="outlined" />
                       </Box>
 
@@ -327,31 +445,11 @@ export default function StreamsPage() {
                       </Tooltip>
 
                       <Box sx={{ display: "flex", gap: 1 }}>
-                        <Button
-                          size="small"
-                          variant="contained"
-                          startIcon={<RadioButtonCheckedIcon />}
-                          onClick={() => handleQuickRecord(stream)}>
-                          Record
-                        </Button>
-                        <Tooltip title="Check if stream is live">
-                          <IconButton
-                            size="small"
-                            color="success"
-                            disabled={streamChecking}
-                            onClick={() => handleCheckStream(stream)}>
-                            <VideoCameraBackIcon />
-                          </IconButton>
-                        </Tooltip>
-                        <IconButton size="small" onClick={() => handleCopyUrl(stream.rtspUrl)}>
-                          <ContentCopyIcon fontSize="small" />
-                        </IconButton>
-                        <IconButton size="small" onClick={() => handleOpenDialog(stream)}>
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                        <IconButton size="small" color="error" onClick={() => handleDeleteStream(stream.id)}>
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
+                        <QuickRecordButton stream={stream} />
+                        <CaptureSnapshotButton stream={stream} />
+                        <CopyUrlButton stream={stream} />
+                        <EditButton stream={stream} />
+                        <DeleteButton streamId={stream.id} />
                       </Box>
                     </CardContent>
                   </Card>
@@ -372,12 +470,14 @@ export default function StreamsPage() {
                     <TableCell>RTSP URL</TableCell>
                     <TableCell>Description</TableCell>
                     <TableCell>Added</TableCell>
+                    <TableCell>Status</TableCell>
                     <TableCell align="right">Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {streams.map((stream) => (
                     <TableRow key={stream.id}>
+                      {/* Name */}
                       <TableCell>
                         <Stack direction="row" alignItems="center" spacing={1}>
                           <Typography variant="body2" fontWeight="medium">
@@ -387,6 +487,7 @@ export default function StreamsPage() {
                           {stream.favorite && <StarIcon sx={{ color: "gold" }} />}
                         </Stack>
                       </TableCell>
+                      {/* RTSP URL */}
                       <TableCell>
                         <Tooltip title={stream.rtspUrl}>
                           <Typography
@@ -399,49 +500,50 @@ export default function StreamsPage() {
                               fontFamily: "monospace",
                               fontSize: 12,
                             }}>
-                            {stream.rtspUrl}
+                            {stream.rtspUrl.replace(/^(rtsp:\/\/)(.*@)?/, "")}
                           </Typography>
                         </Tooltip>
                       </TableCell>
+                      {/* Description */}
                       <TableCell>
                         <Typography variant="body2" color="text.secondary">
                           {stream.description || "-"}
                         </Typography>
                       </TableCell>
+                      {/* Added */}
                       <TableCell>
                         <Typography variant="caption">{formatDate(stream.createdAt)}</Typography>
                       </TableCell>
-                      <TableCell align="right">
-                        <Stack direction="row" alignItems="center" justifyContent="flex-end" spacing={0.5}>
-                          <Tooltip title="Check if stream is live">
+                      {/* Status */}
+                      <TableCell>
+                        <Stack direction="row" alignItems="center" spacing={1}>
+                          {streamStatuses[stream.id] ? (
+                            <StreamStatusChip status={streamStatuses[stream.id]} />
+                          ) : (
+                            <Typography variant="caption" color="text.secondary">
+                              Unknown
+                            </Typography>
+                          )}
+
+                          {/* Refresh button */}
+                          <Tooltip title="Check stream status">
                             <IconButton
                               size="small"
-                              color="success"
-                              disabled={streamChecking}
-                              onClick={() => handleCheckStream(stream)}>
-                              <VideoCameraBackIcon />
+                              color="primary"
+                              disabled={isFetchingStatus || streamChecking}
+                              onClick={() => fetchStreamStatus(stream.id)}>
+                              <RefreshIcon fontSize="small" />
                             </IconButton>
                           </Tooltip>
-                          <Tooltip title="Quick Record">
-                            <IconButton size="small" color="primary" onClick={() => handleQuickRecord(stream)}>
-                              <RadioButtonCheckedIcon />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="Copy URL">
-                            <IconButton size="small" onClick={() => handleCopyUrl(stream.rtspUrl)}>
-                              <ContentCopyIcon />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="Edit">
-                            <IconButton size="small" onClick={() => handleOpenDialog(stream)}>
-                              <EditIcon />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="Delete">
-                            <IconButton size="small" color="error" onClick={() => handleDeleteStream(stream.id)}>
-                              <DeleteIcon />
-                            </IconButton>
-                          </Tooltip>
+                        </Stack>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Stack direction="row" alignItems="center" justifyContent="flex-end" spacing={0.5}>
+                          <CaptureSnapshotButton stream={stream} />
+                          <QuickRecordButton stream={stream} />
+                          <CopyUrlButton stream={stream} />
+                          <EditButton stream={stream} />
+                          <DeleteButton streamId={stream.id} />
                         </Stack>
                       </TableCell>
                     </TableRow>

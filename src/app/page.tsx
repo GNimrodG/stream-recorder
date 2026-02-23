@@ -28,13 +28,14 @@ import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import StopIcon from "@mui/icons-material/Stop";
 import DeleteIcon from "@mui/icons-material/Delete";
 import RefreshIcon from "@mui/icons-material/Refresh";
-import { CreateRecordingDto, Recording, RecordingStats } from "@/types/recording";
+import { CreateRecordingDto, RecordingStats } from "@/types/recording";
 import RecordingDialog from "@/components/RecordingDialog";
 import { formatDate, formatDuration } from "@/utils";
 import StatusDisplay from "@/components/StatusDisplay";
+import useRecordings from "@/hooks/useRecordings";
 
 export default function Dashboard() {
-  const [recordings, setRecordings] = useState<Recording[]>([]);
+  const { recordings, loading: recordingsLoading, fetchRecordings } = useRecordings(5000, true);
   const [stats, setStats] = useState<RecordingStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -55,25 +56,9 @@ export default function Dashboard() {
     duration: 3600,
   });
 
-  const fetchRecordings = useCallback(async () => {
-    try {
-      const response = await fetch("/api/recordings");
-      const data = await response.json();
-      // Only update if data actually changed
-      setRecordings((prev) => {
-        if (JSON.stringify(prev) === JSON.stringify(data)) {
-          return prev;
-        }
-        return data;
-      });
-    } catch (error) {
-      console.error("Failed to fetch recordings:", error);
-    }
-  }, []);
-
   const fetchStats = useCallback(async () => {
     try {
-      const response = await fetch("/api/recordings?stats=true");
+      const response = await fetch("/api/recordings/stats");
       const data = await response.json();
       // Only update if data actually changed
       setStats((prev) => {
@@ -229,7 +214,7 @@ export default function Dashboard() {
           Dashboard
         </Typography>
         <Tooltip title="Refresh">
-          <IconButton onClick={() => fetchAll(true)} disabled={loading}>
+          <IconButton onClick={() => fetchAll(true)} disabled={loading || recordingsLoading}>
             <RefreshIcon />
           </IconButton>
         </Tooltip>
@@ -258,15 +243,20 @@ export default function Dashboard() {
             value: stats?.completed ?? 0,
             color: "#2e7d32",
           },
-        ].map((card) => (
-          <Grid size={{ xs: 12, sm: 6, md: 3 }} key={card.title}>
+          {
+            title: "Failed",
+            value: stats?.failed ?? 0,
+            color: "#f57c00",
+          },
+        ].map((card, _i, arr) => (
+          <Grid size={{ xs: 12, sm: 12 / arr.length }} key={card.title}>
             <Card>
               <CardContent>
                 <Typography color="text.secondary" gutterBottom variant="body2">
                   {card.title}
                 </Typography>
                 <Typography variant="h4" sx={{ fontWeight: "bold", color: card.color }}>
-                  {loading ? <CircularProgress size={24} /> : card.value}
+                  {card.value ?? <CircularProgress size={24} />}
                 </Typography>
               </CardContent>
             </Card>
@@ -297,14 +287,14 @@ export default function Dashboard() {
               <TableRow>
                 <TableCell>Name</TableCell>
                 <TableCell>RTSP URL</TableCell>
-                <TableCell>Start Time</TableCell>
-                <TableCell>Duration</TableCell>
-                <TableCell sx={{ width: "30rem" }}>Status</TableCell>
+                <TableCell sx={{ width: "20rem" }}>Start Time</TableCell>
+                <TableCell sx={{ width: "10rem" }}>Duration</TableCell>
+                <TableCell sx={{ width: "35rem" }}>Status</TableCell>
                 <TableCell align="right">Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {loading ? (
+              {!recordings.length && (loading || recordingsLoading) ? (
                 <TableRow>
                   <TableCell colSpan={6} align="center">
                     <CircularProgress size="2rem" />
@@ -317,14 +307,15 @@ export default function Dashboard() {
                   </TableCell>
                 </TableRow>
               ) : (
-                recordings.slice(0, 5).map((recording) => (
+                recordings.map((recording) => (
                   <TableRow key={recording.id}>
                     <TableCell>{recording.name}</TableCell>
                     <TableCell>
                       <Typography
                         variant="body2"
                         sx={{
-                          maxWidth: 200,
+                          maxWidth: "100%",
+                          minWidth: 0,
                           overflow: "hidden",
                           textOverflow: "ellipsis",
                           whiteSpace: "nowrap",

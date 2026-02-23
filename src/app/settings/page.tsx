@@ -37,6 +37,7 @@ import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CancelIcon from "@mui/icons-material/Cancel";
 import DeleteSweepIcon from "@mui/icons-material/DeleteSweep";
 import { defaultSettings, Settings } from "@/types/settings";
+import NumberField from "@/components/NumberField";
 
 interface HardwareAccelInfo {
   nvidia: boolean;
@@ -83,11 +84,7 @@ export default function SettingsPage() {
     try {
       const response = await fetch("/api/settings");
       const data = await response.json();
-      const {
-        isDocker: dockerFlag,
-        envVars: envVarsData,
-        ...settingsData
-      } = data;
+      const { isDocker: dockerFlag, envVars: envVarsData, ...settingsData } = data;
       setSettings(settingsData);
       setIsDocker(dockerFlag || false);
       setEnvVars(envVarsData || null);
@@ -153,10 +150,7 @@ export default function SettingsPage() {
     }
   };
 
-  const handleChange = <K extends keyof Settings>(
-    key: K,
-    value: Settings[K],
-  ) => {
+  const handleChange = <K extends keyof Settings>(key: K, value: Settings[K]) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
     setHasChanges(true);
   };
@@ -227,19 +221,11 @@ export default function SettingsPage() {
           <Typography variant="h4" fontWeight="bold">
             Settings
           </Typography>
-          {hasChanges && (
-            <Chip label="Unsaved Changes" color="warning" size="small" />
-          )}
+          {hasChanges && <Chip label="Unsaved Changes" color="warning" size="small" />}
         </Box>
         <Button
           variant="contained"
-          startIcon={
-            saving ? (
-              <CircularProgress size={20} color="inherit" />
-            ) : (
-              <SaveIcon />
-            )
-          }
+          startIcon={saving ? <CircularProgress size={20} color="inherit" /> : <SaveIcon />}
           onClick={handleSaveSettings}
           disabled={saving || !hasChanges}>
           Save Settings
@@ -296,10 +282,7 @@ export default function SettingsPage() {
                   value={settings.hardwareAcceleration}
                   label="Hardware Acceleration"
                   onChange={(e) =>
-                    handleChange(
-                      "hardwareAcceleration",
-                      e.target.value as Settings["hardwareAcceleration"],
-                    )
+                    handleChange("hardwareAcceleration", e.target.value as Settings["hardwareAcceleration"])
                   }>
                   <MenuItem value="auto">Auto Detect</MenuItem>
                   <MenuItem value="nvidia" disabled={!hwInfo?.nvidia}>
@@ -349,12 +332,7 @@ export default function SettingsPage() {
                     <Select
                       value={settings.outputFormat}
                       label="Output Format"
-                      onChange={(e) =>
-                        handleChange(
-                          "outputFormat",
-                          e.target.value as Settings["outputFormat"],
-                        )
-                      }>
+                      onChange={(e) => handleChange("outputFormat", e.target.value as Settings["outputFormat"])}>
                       <MenuItem value="mp4">MP4</MenuItem>
                       <MenuItem value="mkv">MKV</MenuItem>
                       <MenuItem value="avi">AVI</MenuItem>
@@ -368,12 +346,7 @@ export default function SettingsPage() {
                     <Select
                       value={settings.videoCodec}
                       label="Video Codec"
-                      onChange={(e) =>
-                        handleChange(
-                          "videoCodec",
-                          e.target.value as Settings["videoCodec"],
-                        )
-                      }>
+                      onChange={(e) => handleChange("videoCodec", e.target.value as Settings["videoCodec"])}>
                       <MenuItem value="copy">Copy (No re-encoding)</MenuItem>
                       <MenuItem value="h264">H.264</MenuItem>
                       <MenuItem value="h265">H.265 (HEVC)</MenuItem>
@@ -387,12 +360,7 @@ export default function SettingsPage() {
                     <Select
                       value={settings.audioCodec}
                       label="Audio Codec"
-                      onChange={(e) =>
-                        handleChange(
-                          "audioCodec",
-                          e.target.value as Settings["audioCodec"],
-                        )
-                      }>
+                      onChange={(e) => handleChange("audioCodec", e.target.value as Settings["audioCodec"])}>
                       <MenuItem value="copy">Copy (No re-encoding)</MenuItem>
                       <MenuItem value="aac">AAC</MenuItem>
                       <MenuItem value="mp3">MP3</MenuItem>
@@ -406,12 +374,7 @@ export default function SettingsPage() {
                     <Select
                       value={settings.rtspTransport}
                       label="RTSP Transport"
-                      onChange={(e) =>
-                        handleChange(
-                          "rtspTransport",
-                          e.target.value as Settings["rtspTransport"],
-                        )
-                      }>
+                      onChange={(e) => handleChange("rtspTransport", e.target.value as Settings["rtspTransport"])}>
                       <MenuItem value="tcp">TCP</MenuItem>
                       <MenuItem value="udp">UDP</MenuItem>
                       <MenuItem value="http">HTTP</MenuItem>
@@ -434,62 +397,45 @@ export default function SettingsPage() {
             <CardContent>
               <Grid container spacing={2}>
                 <Grid size={{ xs: 12 }}>
-                  <TextField
+                  <NumberField
                     fullWidth
                     label="Default Duration"
-                    type="number"
+                    min={1}
                     value={settings.defaultDuration}
-                    onChange={(e) =>
-                      handleChange(
-                        "defaultDuration",
-                        parseInt(e.target.value) || 3600,
-                      )
-                    }
+                    onValueChange={(v) => handleChange("defaultDuration", v ?? 3600)}
                     slotProps={{
                       input: {
-                        endAdornment: (
-                          <InputAdornment position="end">
-                            seconds
-                          </InputAdornment>
-                        ),
+                        endAdornment: <InputAdornment position="end">seconds</InputAdornment>,
                       },
                     }}
                     helperText={`${Math.floor(settings.defaultDuration / 3600)}h ${Math.floor((settings.defaultDuration % 3600) / 60)}m`}
                   />
                 </Grid>
                 <Grid size={{ xs: 6 }}>
-                  <TextField
+                  <NumberField
                     fullWidth
                     label="Reconnect Attempts"
-                    type="number"
+                    min={-1}
                     value={settings.reconnectAttempts}
-                    onChange={(e) =>
-                      handleChange(
-                        "reconnectAttempts",
-                        parseInt(e.target.value) || 3,
-                      )
-                    }
+                    onValueChange={(v) => handleChange("reconnectAttempts", v ?? 3)}
+                    helperText="Set to -1 for infinite attempts, 0 for no reconnection"
+                    slotProps={{
+                      input: {
+                        endAdornment: <InputAdornment position="end">seconds</InputAdornment>,
+                      },
+                    }}
                   />
                 </Grid>
                 <Grid size={{ xs: 6 }}>
-                  <TextField
+                  <NumberField
                     fullWidth
                     label="Reconnect Delay"
-                    type="number"
+                    disabled={settings.reconnectAttempts === 0}
                     value={settings.reconnectDelay}
-                    onChange={(e) =>
-                      handleChange(
-                        "reconnectDelay",
-                        parseInt(e.target.value) || 5,
-                      )
-                    }
+                    onValueChange={(v) => handleChange("reconnectDelay", v ?? 5)}
                     slotProps={{
                       input: {
-                        endAdornment: (
-                          <InputAdornment position="end">
-                            seconds
-                          </InputAdornment>
-                        ),
+                        endAdornment: <InputAdornment position="end">seconds</InputAdornment>,
                       },
                     }}
                   />
@@ -514,9 +460,7 @@ export default function SettingsPage() {
                     fullWidth
                     label="Output Directory"
                     value={settings.outputDirectory}
-                    onChange={(e) =>
-                      handleChange("outputDirectory", e.target.value)
-                    }
+                    onChange={(e) => handleChange("outputDirectory", e.target.value)}
                     disabled={isDocker}
                     helperText={
                       isDocker && envVars?.RECORDINGS_OUTPUT_DIR
@@ -528,44 +472,28 @@ export default function SettingsPage() {
                   />
                 </Grid>
                 <Grid size={{ xs: 6 }}>
-                  <TextField
+                  <NumberField
                     fullWidth
                     label="Max Storage"
-                    type="number"
                     value={settings.maxStorageGB}
-                    onChange={(e) =>
-                      handleChange(
-                        "maxStorageGB",
-                        parseInt(e.target.value) || 0,
-                      )
-                    }
+                    onValueChange={(v) => handleChange("maxStorageGB", v ?? 0)}
                     slotProps={{
                       input: {
-                        endAdornment: (
-                          <InputAdornment position="end">GB</InputAdornment>
-                        ),
+                        endAdornment: <InputAdornment position="end">GB</InputAdornment>,
                       },
                     }}
                     helperText="Set to 0 for unlimited storage"
                   />
                 </Grid>
                 <Grid size={{ xs: 6 }}>
-                  <TextField
+                  <NumberField
                     fullWidth
                     label="Auto Delete After"
-                    type="number"
                     value={settings.autoDeleteAfterDays}
-                    onChange={(e) =>
-                      handleChange(
-                        "autoDeleteAfterDays",
-                        parseInt(e.target.value) || 0,
-                      )
-                    }
+                    onValueChange={(v) => handleChange("autoDeleteAfterDays", v ?? 0)}
                     slotProps={{
                       input: {
-                        endAdornment: (
-                          <InputAdornment position="end">days</InputAdornment>
-                        ),
+                        endAdornment: <InputAdornment position="end">days</InputAdornment>,
                       },
                     }}
                     helperText="Set to 0 to disable"
@@ -587,8 +515,7 @@ export default function SettingsPage() {
                         </Typography>
                         <Typography variant="body2" fontWeight="medium">
                           {storageStats.usedGB.toFixed(2)} GB
-                          {storageStats.maxGB > 0 &&
-                            ` / ${storageStats.maxGB} GB`}
+                          {storageStats.maxGB > 0 && ` / ${storageStats.maxGB} GB`}
                         </Typography>
                       </Box>
                       {storageStats.maxGB > 0 && (
@@ -608,13 +535,7 @@ export default function SettingsPage() {
                       <Button
                         fullWidth
                         variant="outlined"
-                        startIcon={
-                          cleaningUp ? (
-                            <CircularProgress size={20} />
-                          ) : (
-                            <DeleteSweepIcon />
-                          )
-                        }
+                        startIcon={cleaningUp ? <CircularProgress size={20} /> : <DeleteSweepIcon />}
                         onClick={handleManualCleanup}
                         disabled={cleaningUp}
                         sx={{ mt: storageStats.maxGB > 0 ? 0 : 2 }}>
@@ -641,9 +562,7 @@ export default function SettingsPage() {
                 control={
                   <Switch
                     checked={settings.previewEnabled}
-                    onChange={(e) =>
-                      handleChange("previewEnabled", e.target.checked)
-                    }
+                    onChange={(e) => handleChange("previewEnabled", e.target.checked)}
                   />
                 }
                 label="Enable Live Preview"
@@ -657,12 +576,7 @@ export default function SettingsPage() {
                     <Select
                       value={settings.previewQuality}
                       label="Preview Quality"
-                      onChange={(e) =>
-                        handleChange(
-                          "previewQuality",
-                          e.target.value as Settings["previewQuality"],
-                        )
-                      }>
+                      onChange={(e) => handleChange("previewQuality", e.target.value as Settings["previewQuality"])}>
                       <MenuItem value="low">Low (320p)</MenuItem>
                       <MenuItem value="medium">Medium (640p)</MenuItem>
                       <MenuItem value="high">High (1280p)</MenuItem>
@@ -670,25 +584,16 @@ export default function SettingsPage() {
                   </FormControl>
                 </Grid>
                 <Grid size={{ xs: 6 }}>
-                  <TextField
+                  <NumberField
                     fullWidth
                     label="Snapshot Interval"
-                    type="number"
+                    min={1}
                     value={settings.snapshotInterval}
-                    onChange={(e) =>
-                      handleChange(
-                        "snapshotInterval",
-                        parseInt(e.target.value) || 5,
-                      )
-                    }
+                    onValueChange={(v) => handleChange("snapshotInterval", v ?? 5)}
                     disabled={!settings.previewEnabled}
                     slotProps={{
                       input: {
-                        endAdornment: (
-                          <InputAdornment position="end">
-                            seconds
-                          </InputAdornment>
-                        ),
+                        endAdornment: <InputAdornment position="end">seconds</InputAdornment>,
                       },
                     }}
                   />
@@ -707,28 +612,16 @@ export default function SettingsPage() {
               justifyContent: "space-between",
               alignItems: "center",
             }}>
-            <Button
-              variant="outlined"
-              color="warning"
-              onClick={handleResetToDefaults}>
+            <Button variant="outlined" color="warning" onClick={handleResetToDefaults}>
               Reset to Defaults
             </Button>
             <Box sx={{ display: "flex", gap: 2 }}>
-              <Button
-                variant="outlined"
-                onClick={fetchSettings}
-                disabled={loading}>
+              <Button variant="outlined" onClick={fetchSettings} disabled={loading}>
                 Discard Changes
               </Button>
               <Button
                 variant="contained"
-                startIcon={
-                  saving ? (
-                    <CircularProgress size={20} color="inherit" />
-                  ) : (
-                    <SaveIcon />
-                  )
-                }
+                startIcon={saving ? <CircularProgress size={20} color="inherit" /> : <SaveIcon />}
                 onClick={handleSaveSettings}
                 disabled={saving || !hasChanges}>
                 Save Settings
@@ -739,13 +632,8 @@ export default function SettingsPage() {
       </Grid>
 
       {/* Snackbar */}
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={4000}
-        onClose={() => setSnackbar({ ...snackbar, open: false })}>
-        <Alert
-          severity={snackbar.severity}
-          onClose={() => setSnackbar({ ...snackbar, open: false })}>
+      <Snackbar open={snackbar.open} autoHideDuration={4000} onClose={() => setSnackbar({ ...snackbar, open: false })}>
+        <Alert severity={snackbar.severity} onClose={() => setSnackbar({ ...snackbar, open: false })}>
           {snackbar.message}
         </Alert>
       </Snackbar>

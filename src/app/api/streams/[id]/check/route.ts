@@ -3,13 +3,10 @@ import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 import { getStreamById } from "@/lib/streams";
-import { captureSnapshot } from "@/lib/recordings";
 import os from "os";
+import { captureSnapshot } from "@/lib/ffmpeg";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const stream = getStreamById(id);
 
@@ -17,10 +14,7 @@ export async function GET(
     return NextResponse.json({ error: "Stream not found" }, { status: 404 });
   }
 
-  const snapshotPath = path.join(
-    os.tmpdir(),
-    `snapshot_${id}_${Date.now()}.jpg`,
-  );
+  const snapshotPath = path.join(os.tmpdir(), `snapshot_${id}_${Date.now()}.jpg`);
 
   let rawFrame = false;
 
@@ -53,10 +47,7 @@ export async function GET(
       },
     );
   } catch (error) {
-    console.error(
-      "Error capturing snapshot:",
-      (error as Error).message || error,
-    );
+    console.error("Error capturing snapshot:", (error as Error).message || error);
     return NextResponse.json(
       { error: "Failed to capture snapshot. Stream may not be live." },
       {

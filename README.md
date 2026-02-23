@@ -102,16 +102,18 @@ Configure hardware acceleration, codecs, storage, and preview options
 
 ### Environment Variables
 
-| Variable                | Description                        | Default                  |
-|-------------------------|------------------------------------|--------------------------|
-| `RECORDINGS_DB_PATH`    | Path to the JSON database file     | `./data/recordings.json` |
-| `SETTINGS_FILE_PATH`    | Path to the settings JSON file     | `./data/settings.json`   |
-| `STREAMS_FILE_PATH`     | Path to the streams JSON file      | `./data/streams.json`    |
-| `RECORDINGS_OUTPUT_DIR` | Directory for recorded video files | `./recordings`           |
-| `PORT`                  | Application port                   | `3000`                   |
-| `NEXTAUTH_SECRET`       | Secret for NextAuth.js (optional)  | -                        |
-| `NEXTAUTH_URL`          | Public URL for NextAuth (optional) | -                        |
-| `AUTH_DISABLED`         | Disable authentication (optional)  | `false`                  |
+|        Variable         | Description                        | Default                                      |
+|:-----------------------:|------------------------------------|----------------------------------------------|
+|  `RECORDINGS_DB_PATH`   | Path to the JSON database file     | `./data/recordings.json`                     |
+|  `SETTINGS_FILE_PATH`   | Path to the settings JSON file     | `./data/settings.json`                       |
+|   `STREAMS_FILE_PATH`   | Path to the streams JSON file      | `./data/streams.json`                        |
+| `RECORDINGS_OUTPUT_DIR` | Directory for recorded video files | The value set in settings (`./recordings`)   |
+|     `OUTPUT_FORMAT`     | Default output video format        | The value set in settings (`mp4`)            |
+|      `FFMPEG_PATH`      | Path to the FFmpeg executable      | The value set in settings (`ffmpeg` in PATH) |
+|         `PORT`          | Application port                   | `3000`                                       |
+|    `NEXTAUTH_SECRET`    | Secret for NextAuth.js (optional)  | -                                            |
+|     `NEXTAUTH_URL`      | Public URL for NextAuth (optional) | -                                            |
+|     `AUTH_DISABLED`     | Disable authentication (optional)  | `false`                                      |
 
 ### Settings (via UI)
 
@@ -176,13 +178,13 @@ The Docker setup uses two persistent volumes:
 
 ### Streams
 
-|  Method  | Endpoint              | Description           |
-|:--------:|-----------------------|-----------------------|
-|  `GET`   | `/api/streams`        | Get all saved streams |
-|  `POST`  | `/api/streams`        | Create a new stream   |
-|  `GET`   | `/api/streams/[id]`   | Get a specific stream |
-| `PATCH`  | `/api/streams/[id]`   | Update a stream       |
-| `DELETE` | `/api/streams/[id]`   | Delete a stream       |
+|  Method  | Endpoint            | Description           |
+|:--------:|---------------------|-----------------------|
+|  `GET`   | `/api/streams`      | Get all saved streams |
+|  `POST`  | `/api/streams`      | Create a new stream   |
+|  `GET`   | `/api/streams/[id]` | Get a specific stream |
+| `PATCH`  | `/api/streams/[id]` | Update a stream       |
+| `DELETE` | `/api/streams/[id]` | Delete a stream       |
 
 ### Settings
 
@@ -195,10 +197,10 @@ The Docker setup uses two persistent volumes:
 
 ### Storage
 
-| Method | Endpoint        | Description                 |
-|:------:|:----------------|:----------------------------|
-| `GET`  | `/api/storage`  | Get storage statistics      |
-| `POST` | `/api/storage`  | Run storage cleanup process |
+| Method | Endpoint       | Description                 |
+|:------:|:---------------|:----------------------------|
+| `GET`  | `/api/storage` | Get storage statistics      |
+| `POST` | `/api/storage` | Run storage cleanup process |
 
 ## Usage
 

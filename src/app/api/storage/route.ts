@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getStorageStats, runStorageCleanup } from "@/lib/recordings";
+import { getStorageStats, runStorageCleanup } from "@/lib/storage";
 
 export async function GET() {
   try {
@@ -7,10 +7,7 @@ export async function GET() {
     return NextResponse.json(stats);
   } catch (error) {
     console.error("Error getting storage stats:", error);
-    return NextResponse.json(
-      { error: "Failed to get storage stats" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Failed to get storage stats" }, { status: 500 });
   }
 }
 
@@ -23,9 +20,6 @@ export async function POST() {
     });
   } catch (error) {
     console.error("Error running storage cleanup:", error);
-    return NextResponse.json(
-      { error: "Failed to run storage cleanup" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Failed to run storage cleanup" }, { status: 500 });
   }
 }

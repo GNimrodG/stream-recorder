@@ -1,16 +1,7 @@
 "use client";
 
 import { signOut, useSession } from "next-auth/react";
-import {
-  Avatar,
-  Box,
-  CircularProgress,
-  Divider,
-  ListItemIcon,
-  Menu,
-  MenuItem,
-  Typography,
-} from "@mui/material";
+import { Avatar, Box, CircularProgress, Divider, ListItemIcon, Menu, MenuItem, Typography } from "@mui/material";
 import LogoutIcon from "@mui/icons-material/Logout";
 import PersonIcon from "@mui/icons-material/Person";
 import { useState } from "react";
@@ -70,9 +61,7 @@ export default function UserProfile() {
           },
         }}
         onClick={handleClick}>
-        <Avatar
-          src={session.user.image || undefined}
-          sx={{ width: 36, height: 36, bgcolor: "primary.main" }}>
+        <Avatar src={session.user.image || undefined} sx={{ width: 36, height: 36, bgcolor: "primary.main" }}>
           {initials}
         </Avatar>
         <Box sx={{ flexGrow: 1, overflow: "hidden" }}>
@@ -100,7 +89,7 @@ export default function UserProfile() {
         onClose={handleClose}
         transformOrigin={{ horizontal: "left", vertical: "bottom" }}
         anchorOrigin={{ horizontal: "left", vertical: "top" }}>
-        <MenuItem disabled>
+        <MenuItem disabled sx={{ "&.Mui-disabled": { opacity: 1 } }}>
           <ListItemIcon>
             <PersonIcon fontSize="small" />
           </ListItemIcon>

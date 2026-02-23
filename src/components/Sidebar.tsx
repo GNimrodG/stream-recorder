@@ -44,31 +44,19 @@ export default function Sidebar() {
   const drawer = (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <Toolbar>
-        <Typography
-          variant="h6"
-          noWrap
-          component="div"
-          sx={{ fontWeight: "bold" }}>
+        <Typography variant="h6" noWrap component="div" sx={{ fontWeight: "bold" }}>
           StreamRec
         </Typography>
       </Toolbar>
       <Divider />
       <List sx={{ flexGrow: 1 }}>
         {menuItems.map((item) => {
-          const isActive =
-            pathname === item.href ||
-            (item.href !== "/" && pathname.startsWith(item.href));
+          const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
 
           return (
             <ListItem key={item.text} disablePadding>
-              <ListItemButton
-                selected={isActive}
-                component="a"
-                href={item.href}>
-                <ListItemIcon
-                  sx={{ color: isActive ? "primary.main" : "inherit" }}>
-                  {item.icon}
-                </ListItemIcon>
+              <ListItemButton selected={isActive} component="a" href={item.href}>
+                <ListItemIcon sx={{ color: isActive ? "primary.main" : "inherit" }}>{item.icon}</ListItemIcon>
                 <ListItemText primary={item.text} />
               </ListItemButton>
             </ListItem>
@@ -83,27 +71,27 @@ export default function Sidebar() {
   return (
     <>
       {/* Mobile menu button - rendered in a portal or passed up */}
-      <IconButton
-        color="inherit"
-        aria-label="open drawer"
-        edge="start"
-        onClick={handleDrawerToggle}
-        sx={{
-          mr: 2,
-          display: { sm: "none" },
-          position: "fixed",
-          top: 12,
-          left: 12,
-          zIndex: 1300,
-          bgcolor: "background.paper",
-          boxShadow: 1,
-        }}>
-        <MenuIcon />
-      </IconButton>
+      {!mobileOpen && (
+        <IconButton
+          color="inherit"
+          aria-label="open drawer"
+          edge="start"
+          onClick={handleDrawerToggle}
+          sx={{
+            mr: 2,
+            display: { sm: "none" },
+            position: "fixed",
+            top: 12,
+            left: 12,
+            zIndex: 1300,
+            bgcolor: "background.paper",
+            boxShadow: 1,
+          }}>
+          <MenuIcon />
+        </IconButton>
+      )}
 
-      <Box
-        component="nav"
-        sx={{ width: { sm: drawerWidth }, flexShrink: { sm: 0 } }}>
+      <Box component="nav" sx={{ width: { sm: drawerWidth }, flexShrink: { sm: 0 } }}>
         <Drawer
           variant="temporary"
           open={mobileOpen}

@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
-import { Recording } from "@/types/recording";
+import { RecordingWithStatus } from "@/types/recording";
 
-export default function useRecordings() {
-  const [recordings, setRecordings] = useState<Recording[]>([]);
+export default function useRecordings(refreshInterval = 10000, recent = false) {
+  const [recordings, setRecordings] = useState<RecordingWithStatus[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchRecordings = useCallback(async () => {
     try {
-      const response = await fetch("/api/recordings");
+      const response = await fetch("/api/recordings" + (recent ? "/recent" : ""));
       const data = await response.json();
       setRecordings(data);
     } catch (error) {
@@ -15,13 +15,13 @@ export default function useRecordings() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [recent]);
 
   useEffect(() => {
     fetchRecordings().then();
-    const interval = setInterval(fetchRecordings, 10000);
+    const interval = setInterval(fetchRecordings, refreshInterval);
     return () => clearInterval(interval);
-  }, [fetchRecordings]);
+  }, [fetchRecordings, refreshInterval]);
 
   return { recordings, loading, fetchRecordings };
 }

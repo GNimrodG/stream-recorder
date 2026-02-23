@@ -6,9 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "vitest"
   },
   "dependencies": {
+    "@base-ui/react": "^1.2.0",
     "@emotion/cache": "^11.14.0",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
@@ -17,6 +19,7 @@
     "@mui/material-nextjs": "^7.3.8",
     "@mui/x-date-pickers": "^8.27.0",
     "date-fns": "^4.1.0",
+    "lru-cache": "^11.2.6",
     "next": "16.1.6",
     "next-auth": "^4.24.13",
     "react": "19.2.3",
@@ -30,6 +33,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "prettier": "^3.8.1",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^0.34.3"
   }
 }

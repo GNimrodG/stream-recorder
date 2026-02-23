@@ -37,7 +37,7 @@ import PreviewIcon from "@mui/icons-material/Visibility";
 import EditIcon from "@mui/icons-material/Edit";
 import FolderIcon from "@mui/icons-material/Folder";
 import PlayCircleIcon from "@mui/icons-material/PlayCircle";
-import { CreateRecordingDto, Recording } from "@/types/recording";
+import { CreateRecordingDto, RecordingWithStatus } from "@/types/recording";
 import RecordingDialog from "@/components/RecordingDialog";
 import StatusDisplay from "@/components/StatusDisplay";
 import { formatDate, formatDuration } from "@/utils";
@@ -52,12 +52,12 @@ export default function RecordingsPage() {
 
 function RecordingsPageContent() {
   const searchParams = useSearchParams();
-  const [recordings, setRecordings] = useState<Recording[]>([]);
+  const [recordings, setRecordings] = useState<RecordingWithStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
-  const [selectedRecording, setSelectedRecording] = useState<Recording | null>(null);
+  const [selectedRecording, setSelectedRecording] = useState<RecordingWithStatus | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
@@ -256,7 +256,7 @@ function RecordingsPageContent() {
     }
   };
 
-  const handleEditClick = (recording: Recording) => {
+  const handleEditClick = (recording: RecordingWithStatus) => {
     setSelectedRecording(recording);
     setFormData({
       name: recording.name,
@@ -267,7 +267,7 @@ function RecordingsPageContent() {
     setEditDialogOpen(true);
   };
 
-  const handlePreviewClick = (recording: Recording) => {
+  const handlePreviewClick = (recording: RecordingWithStatus) => {
     setSelectedRecording(recording);
     setPreviewDialogOpen(true);
   };
@@ -341,9 +341,9 @@ function RecordingsPageContent() {
               <TableRow>
                 <TableCell>Name</TableCell>
                 <TableCell>RTSP URL</TableCell>
-                <TableCell>Start Time</TableCell>
-                <TableCell>Duration</TableCell>
-                <TableCell sx={{ width: "30rem" }}>Status</TableCell>
+                <TableCell sx={{ width: { xs: "auto", md: "25%" } }}>Start Time</TableCell>
+                <TableCell sx={{ width: { xs: "auto", md: "15%" } }}>Duration</TableCell>
+                <TableCell sx={{ width: { xs: "auto", md: "40%" } }}>Status</TableCell>
                 <TableCell>Output</TableCell>
                 <TableCell align="right">Actions</TableCell>
               </TableRow>

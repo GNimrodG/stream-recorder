@@ -1,3 +1,5 @@
+import { StreamStatus } from "@/lib/stream";
+
 export interface SavedStream {
   id: string;
   name: string;
@@ -6,4 +8,10 @@ export interface SavedStream {
   createdAt: string;
   updatedAt: string;
   favorite?: boolean;
+}
+
+export interface StreamStatusResult {
+  id: string;
+  status: StreamStatus;
+  lastChecked: string;
 }

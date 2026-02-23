@@ -43,9 +43,7 @@ import { formatDate, formatDuration } from "@/utils";
 
 export default function ViewerPage() {
   const { recordings, loading, fetchRecordings } = useRecordings();
-  const [selectedRecording, setSelectedRecording] = useState<Recording | null>(
-    null,
-  );
+  const [selectedRecording, setSelectedRecording] = useState<Recording | null>(null);
   const [videoDialogOpen, setVideoDialogOpen] = useState(false);
   const [liveDialogOpen, setLiveDialogOpen] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>("all");
@@ -67,6 +65,7 @@ export default function ViewerPage() {
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
   const [isLoadingVideo, setIsLoadingVideo] = useState(true);
+  const [isVideoError, setIsVideoError] = useState(false);
 
   const handleWatchVideo = (recording: Recording) => {
     setIsLoadingVideo(true);
@@ -162,7 +161,7 @@ export default function ViewerPage() {
   // Filter recordings that can be viewed
   const viewableRecordings = recordings.filter((r) => {
     if (filterStatus === "all") {
-      return r.status === "completed" || r.status === "recording";
+      return !!r.outputPath;
     }
     return r.status === filterStatus;
   });
@@ -192,11 +191,7 @@ export default function ViewerPage() {
         {["all", "recording", "completed"].map((status) => (
           <Chip
             key={status}
-            label={
-              status === "all"
-                ? "All Viewable"
-                : status.charAt(0).toUpperCase() + status.slice(1)
-            }
+            label={status === "all" ? "All Viewable" : status.charAt(0).toUpperCase() + status.slice(1)}
             onClick={() => setFilterStatus(status)}
             color={filterStatus === status ? "primary" : "default"}
             variant={filterStatus === status ? "filled" : "outlined"}
@@ -218,9 +213,7 @@ export default function ViewerPage() {
         </Box>
       ) : viewableRecordings.length === 0 ? (
         <Paper sx={{ p: 4, textAlign: "center" }}>
-          <VideoLibraryIcon
-            sx={{ fontSize: 64, color: "text.secondary", mb: 2 }}
-          />
+          <VideoLibraryIcon sx={{ fontSize: 64, color: "text.secondary", mb: 2 }} />
           <Typography variant="h6" color="text.secondary">
             No viewable recordings found
           </Typography>
@@ -307,29 +300,19 @@ export default function ViewerPage() {
                   <Typography variant="subtitle1" fontWeight="medium" noWrap>
                     {recording.name}
                   </Typography>
-                  <Typography
-                    variant="caption"
-                    color="text.secondary"
-                    display="block">
+                  <Typography variant="caption" color="text.secondary" display="block">
                     {formatDate(recording.startTime)}
                   </Typography>
 
                   <StatusDisplay recording={recording} />
                 </CardContent>
                 <CardActions>
-                  {recording.status === "completed" && (
+                  {recording.outputPath && (
                     <>
-                      <Button
-                        size="small"
-                        startIcon={<PlayArrowIcon />}
-                        onClick={() => handleWatchVideo(recording)}>
+                      <Button size="small" startIcon={<PlayArrowIcon />} onClick={() => handleWatchVideo(recording)}>
                         Watch
                       </Button>
-                      <IconButton
-                        size="small"
-                        component="a"
-                        href={`/api/recordings/${recording.id}/download`}
-                        download>
+                      <IconButton size="small" component="a" href={`/api/recordings/${recording.id}/download`} download>
                         <DownloadIcon />
                       </IconButton>
                     </>
@@ -367,7 +350,8 @@ export default function ViewerPage() {
             justifyContent: "space-between",
             alignItems: "center",
             color: "white",
-          }}>
+          }}
+          component="div">
           <Typography variant="h6">{selectedRecording?.name}</Typography>
           <IconButton onClick={handleCloseVideoDialog} sx={{ color: "white" }}>
             <CloseIcon />
@@ -383,6 +367,10 @@ export default function ViewerPage() {
                 onTimeUpdate={handleTimeUpdate}
                 onLoadedMetadata={handleLoadedMetadata}
                 onLoadedData={() => setIsLoadingVideo(false)}
+                onError={() => {
+                  setIsLoadingVideo(false);
+                  setIsVideoError(true);
+                }}
                 onPlay={() => setIsPlaying(true)}
                 onPause={() => setIsPlaying(false)}
                 onEnded={() => setIsPlaying(false)}
@@ -408,6 +396,23 @@ export default function ViewerPage() {
                 </Box>
               )}
 
+              {/* Error message */}
+              {isVideoError && (
+                <Box
+                  sx={{
+                    position: "absolute",
+                    top: "50%",
+                    left: "50%",
+                    transform: "translate(-50%, -50%)",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 2,
+                  }}>
+                  <Alert severity="error">Failed to load video. Please try again later.</Alert>
+                </Box>
+              )}
+
               {/* Video Controls */}
               <Box sx={{ p: 2, bgcolor: "rgba(0,0,0,0.8)" }}>
                 {/* Progress Bar */}
@@ -423,17 +428,13 @@ export default function ViewerPage() {
                     {isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
                   </IconButton>
 
-                  <Typography
-                    variant="body2"
-                    sx={{ color: "white", minWidth: 100 }}>
+                  <Typography variant="body2" sx={{ color: "white", minWidth: 100 }}>
                     {formatTime(currentTime)} / {formatTime(duration)}
                   </Typography>
 
                   <Box sx={{ flexGrow: 1 }} />
 
-                  <IconButton
-                    onClick={handleToggleMute}
-                    sx={{ color: "white" }}>
+                  <IconButton onClick={handleToggleMute} sx={{ color: "white" }}>
                     {isMuted ? <VolumeOffIcon /> : <VolumeUpIcon />}
                   </IconButton>
 
@@ -445,9 +446,7 @@ export default function ViewerPage() {
                     sx={{ width: 100, color: "white" }}
                   />
 
-                  <IconButton
-                    onClick={handleFullscreen}
-                    sx={{ color: "white" }}>
+                  <IconButton onClick={handleFullscreen} sx={{ color: "white" }}>
                     <FullscreenIcon />
                   </IconButton>
 
@@ -466,11 +465,7 @@ export default function ViewerPage() {
       </Dialog>
 
       {/* Live Preview Dialog */}
-      <Dialog
-        open={liveDialogOpen}
-        onClose={handleCloseLiveDialog}
-        maxWidth="md"
-        fullWidth>
+      <Dialog open={liveDialogOpen} onClose={handleCloseLiveDialog} maxWidth="md" fullWidth>
         <DialogTitle
           sx={{
             display: "flex",
@@ -495,8 +490,7 @@ export default function ViewerPage() {
             </Box>
           )}
           <Alert severity="info" sx={{ mt: 2 }}>
-            Live preview shows snapshots that refresh automatically. For the
-            actual recording, wait until it completes.
+            Live preview shows snapshots that refresh automatically. For the actual recording, wait until it completes.
           </Alert>
         </DialogContent>
         <DialogActions>
@@ -505,13 +499,8 @@ export default function ViewerPage() {
       </Dialog>
 
       {/* Snackbar */}
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={4000}
-        onClose={() => setSnackbar({ ...snackbar, open: false })}>
-        <Alert
-          severity={snackbar.severity}
-          onClose={() => setSnackbar({ ...snackbar, open: false })}>
+      <Snackbar open={snackbar.open} autoHideDuration={4000} onClose={() => setSnackbar({ ...snackbar, open: false })}>
+        <Alert severity={snackbar.severity} onClose={() => setSnackbar({ ...snackbar, open: false })}>
           {snackbar.message}
         </Alert>
       </Snackbar>

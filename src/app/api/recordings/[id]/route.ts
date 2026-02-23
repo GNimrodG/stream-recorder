@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { deleteRecording, getRecordingById, startRecording, stopRecording, updateRecording } from "@/lib/recordings";
+import { deleteRecording, getRecordingWithStatsById, updateRecording } from "@/lib/recordings";
 import { UpdateRecordingDto } from "@/types/recording";
+import { RecordingManager } from "@/lib/RecordingManager";
+import { ensureInitialized } from "@/app/api/recordings/route";
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  ensureInitialized();
+
   const { id } = await params;
-  const recording = getRecordingById(id);
+  const recording = getRecordingWithStatsById(id);
 
   if (!recording) {
     return NextResponse.json({ error: "Recording not found" }, { status: 404 });
@@ -33,7 +37,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const success = deleteRecording(id);
 
@@ -50,25 +54,25 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const searchParams = request.nextUrl.searchParams;
   const action = searchParams.get("action");
 
-  const recording = getRecordingById(id);
+  const manager = RecordingManager.getInstance(id);
 
-  if (!recording) {
-    return NextResponse.json({ error: "Recording not found" }, { status: 404 });
+  if (!manager) {
+    return NextResponse.json({ error: "Recording manager not found" }, { status: 404 });
   }
 
   switch (action) {
     case "start":
-      if (recording.status !== "scheduled") {
-        return NextResponse.json({ error: "Recording is not in scheduled status" }, { status: 400 });
+      if (manager.hasStarted()) {
+        return NextResponse.json({ error: "The recording has already started." }, { status: 400 });
       }
-      startRecording(id);
+      manager.start();
       return NextResponse.json({ success: true, message: "Recording started" });
 
     case "stop":
-      if (recording.status !== "recording" && recording.status !== "retrying") {
+      if (!manager.hasStarted()) {
         return NextResponse.json({ error: "Recording is not currently running" }, { status: 400 });
       }
-      stopRecording(id);
+      manager.stop();
       return NextResponse.json({ success: true, message: "Recording stopped" });
 
     default:

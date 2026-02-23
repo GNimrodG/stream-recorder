@@ -1,12 +1,12 @@
 import { STATUS_CONFIG } from "@/lib/status-config";
 import { Chip, Stack, Tooltip, Typography } from "@mui/material";
 import type { FC } from "react";
-import { Recording } from "@/types/recording";
+import { RecordingWithStatus } from "@/types/recording";
 import ErrorIcon from "@mui/icons-material/Announcement";
 import WarningIcon from "@mui/icons-material/Warning";
 
 interface StatusDisplayProps {
-  recording: Recording;
+  recording: RecordingWithStatus;
 }
 
 const StatusDisplay: FC<StatusDisplayProps> = ({ recording }) => {
@@ -15,9 +15,9 @@ const StatusDisplay: FC<StatusDisplayProps> = ({ recording }) => {
   return (
     <Stack direction="row" alignItems="center" spacing={1}>
       <Chip
-        icon={config.icon}
-        label={config.label || recording.status}
-        color={config.color}
+        icon={config?.icon}
+        label={config?.label || recording.status || "Unknown"}
+        color={config?.color}
         size="small"
       />
 
@@ -32,39 +32,41 @@ const StatusDisplay: FC<StatusDisplayProps> = ({ recording }) => {
       )}
 
       {!!recording.fps && (
-        <Typography
-          variant="caption"
-          color="text.secondary"
-          sx={{ fontFamily: "var(--font-geist-mono)" }}>
+        <Typography variant="caption" color="text.secondary" sx={{ fontFamily: "var(--font-geist-mono)" }}>
           {recording.fps} FPS
         </Typography>
       )}
 
-      {!!recording.frameCount && (
-        <Typography
-          variant="caption"
-          color="text.secondary"
-          sx={{ fontFamily: "var(--font-geist-mono)" }}>
-          {recording.frameCount} frames
+      {!!recording.frames && (
+        <Typography variant="caption" color="text.secondary" sx={{ fontFamily: "var(--font-geist-mono)" }}>
+          {recording.frames} frames
+        </Typography>
+      )}
+
+      {!!recording.time && (
+        <Typography variant="caption" color="text.secondary" sx={{ fontFamily: "var(--font-geist-mono)" }}>
+          {recording.time}
         </Typography>
       )}
 
       {!!recording.bitrate && (
-        <Typography
-          variant="caption"
-          color="text.secondary"
-          sx={{ fontFamily: "var(--font-geist-mono)" }}>
+        <Typography variant="caption" color="text.secondary" sx={{ fontFamily: "var(--font-geist-mono)" }}>
           {recording.bitrate}
         </Typography>
       )}
 
       {!!recording.speed && (
-        <Typography
-          variant="caption"
-          color="text.secondary"
-          sx={{ fontFamily: "var(--font-geist-mono)" }}>
-          {recording.speed}x
-        </Typography>
+        <>
+          <Typography variant="caption" color="text.secondary" sx={{ fontFamily: "var(--font-geist-mono)" }}>
+            {recording.speed}x
+          </Typography>
+
+          {recording.speed < 1 && (
+            <Tooltip title="Recording is processing slower than real-time. This may indicate performance issues or a bottleneck in the recording pipeline.">
+              <WarningIcon color="warning" fontSize="small" sx={{ ml: 0.5 }} />
+            </Tooltip>
+          )}
+        </>
       )}
     </Stack>
   );

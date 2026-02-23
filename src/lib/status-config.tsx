@@ -10,6 +10,11 @@ export const STATUS_CONFIG = {
     icon: <ScheduleIcon fontSize="small" />,
     label: "Scheduled",
   },
+  starting: {
+    color: "secondary" as const,
+    icon: <ScheduleIcon fontSize="small" />,
+    label: "Starting",
+  },
   recording: {
     color: "error" as const,
     icon: <FiberManualRecordIcon fontSize="small" />,

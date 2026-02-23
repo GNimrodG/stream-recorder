@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { captureSnapshot, getRecordingById } from "@/lib/recordings";
+import { getRecordingWithStatsById } from "@/lib/recordings";
 import { loadSettings } from "@/lib/settings";
 import fs from "fs";
 import path from "path";
 import os from "os";
+import { captureSnapshot } from "@/lib/ffmpeg";
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const recording = getRecordingById(id);
+  const recording = getRecordingWithStatsById(id);
   const rawFrame = request.nextUrl.searchParams.get("raw") === "true";
 
   if (!recording) {

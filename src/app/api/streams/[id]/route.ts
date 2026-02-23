@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { deleteStream, getStreamById, updateStream } from "@/lib/streams";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const stream = getStreamById(id);
 
@@ -15,10 +12,7 @@ export async function GET(
   return NextResponse.json(stream);
 }
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
   try {
@@ -32,17 +26,11 @@ export async function PATCH(
     return NextResponse.json(stream);
   } catch (error) {
     console.error("Error updating stream:", error);
-    return NextResponse.json(
-      { error: "Failed to update stream" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Failed to update stream" }, { status: 500 });
   }
 }
 
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const deleted = deleteStream(id);
 

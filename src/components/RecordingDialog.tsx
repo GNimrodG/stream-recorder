@@ -20,7 +20,7 @@ import LinkIcon from "@mui/icons-material/Link";
 import { CreateRecordingDto } from "@/types/recording";
 import { SavedStream } from "@/types/stream";
 import DurationInput from "@/components/DurationInput";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 interface RecordingDialogProps {
   open: boolean;
@@ -59,6 +59,30 @@ export default function RecordingDialog({
       fetchSavedStreams().then();
     }
   }, [open]);
+
+  const onStartTimeChange = useCallback(
+    (date: Date | null) => {
+      const rounded = date ? new Date(date) : null;
+      rounded?.setSeconds(0, 0); // Round to nearest minute
+      onFormChange({
+        ...formData,
+        startTime: (rounded ?? new Date()).toISOString(),
+      });
+    },
+    [onFormChange, formData],
+  );
+
+  const onEndTimeChange = useCallback(
+    (date: Date | null) => {
+      if (!date) return;
+      const duration = Math.round((date.getTime() - new Date(formData.startTime).getTime()) / 60000);
+      onFormChange({
+        ...formData,
+        duration: duration > 0 ? duration : formData.duration,
+      });
+    },
+    [onFormChange, formData],
+  );
 
   const handleSelectSavedStream = (streamId: string) => {
     setSelectedStreamId(streamId);
@@ -106,37 +130,29 @@ export default function RecordingDialog({
             label="Recording Name"
             fullWidth
             value={formData.name}
-            onChange={(e) =>
-              onFormChange({ ...formData, name: e.target.value })
-            }
+            onChange={(e) => onFormChange({ ...formData, name: e.target.value })}
             placeholder="e.g., Camera 1 - Morning"
           />
+
           <TextField
             label="RTSP URL"
             fullWidth
             value={formData.rtspUrl}
-            onChange={(e) =>
-              onFormChange({ ...formData, rtspUrl: e.target.value })
-            }
+            onChange={(e) => onFormChange({ ...formData, rtspUrl: e.target.value })}
             placeholder="rtsp://username:password@ip:port/stream"
             helperText="Enter the full RTSP stream URL"
           />
+
+          <DateTimePicker label="Start Time" value={new Date(formData.startTime)} onChange={onStartTimeChange} />
+
           <DateTimePicker
-            label="Start Time"
-            value={new Date(formData.startTime)}
-            onChange={(date) =>
-              onFormChange({
-                ...formData,
-                startTime: date?.toISOString() || new Date().toISOString(),
-              })
-            }
+            label="End Time"
+            value={new Date(new Date(formData.startTime).getTime() + formData.duration * 1000)}
+            onChange={onEndTimeChange}
           />
 
           {/* Duration with presets */}
-          <DurationInput
-            value={formData.duration}
-            onChange={(duration) => onFormChange({ ...formData, duration })}
-          />
+          <DurationInput value={formData.duration} onChange={(duration) => onFormChange({ ...formData, duration })} />
         </Box>
       </DialogContent>
       <DialogActions>

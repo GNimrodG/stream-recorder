@@ -1,6 +1,7 @@
-import { Box, Button, TextField, Typography } from "@mui/material";
+import { Box, Button, Typography } from "@mui/material";
 import { formatDuration } from "@/utils";
 import { FC } from "react";
+import NumberField from "@/components/NumberField";
 
 export interface DurationInputProps {
   value: number; // Duration in seconds
@@ -34,43 +35,42 @@ const DurationInput: FC<DurationInputProps> = ({ value, onChange }) => {
         ))}
       </Box>
       <Box sx={{ display: "flex", gap: 1 }}>
-        <TextField
+        <NumberField
           label="Hours"
-          type="number"
           value={Math.floor(value / 3600)}
-          onChange={(e) => {
-            const hours = parseInt(e.target.value) || 0;
+          onValueChange={(v) => {
+            const hours = v ?? 0;
             const remainingSeconds = value % 3600;
             onChange(hours * 3600 + remainingSeconds);
           }}
           sx={{ flex: 1 }}
-          slotProps={{ htmlInput: { min: 0 } }}
+          min={0}
         />
-        <TextField
+        <NumberField
           label="Minutes"
-          type="number"
           value={Math.floor((value % 3600) / 60)}
-          onChange={(e) => {
-            const minutes = parseInt(e.target.value) || 0;
+          onValueChange={(v) => {
+            const minutes = v ?? 0;
             const hours = Math.floor(value / 3600);
             const seconds = value % 60;
             onChange(hours * 3600 + minutes * 60 + seconds);
           }}
           sx={{ flex: 1 }}
-          slotProps={{ htmlInput: { min: 0, max: 59 } }}
+          min={0}
+          max={59}
         />
-        <TextField
+        <NumberField
           label="Seconds"
-          type="number"
           value={value % 60}
-          onChange={(e) => {
-            const seconds = parseInt(e.target.value) || 0;
+          onValueChange={(v) => {
+            const seconds = v ?? 0;
             const hours = Math.floor(value / 3600);
             const minutes = Math.floor((value % 3600) / 60);
             onChange(hours * 3600 + minutes * 60 + seconds);
           }}
           sx={{ flex: 1 }}
-          slotProps={{ htmlInput: { min: 0, max: 59 } }}
+          min={0}
+          max={59}
         />
       </Box>
     </Box>
