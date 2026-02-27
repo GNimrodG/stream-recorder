@@ -498,7 +498,7 @@ function RecordingsPageContent() {
                         {recording.status !== "failed" &&
                           recording.status !== "cancelled" &&
                           (recording.isIgnoringLiveStatus ? (
-                            <Tooltip title="Ignoring live status">
+                            <Tooltip title="Check stream live status before recording">
                               <IconButton
                                 color="success"
                                 size="small"
@@ -507,7 +507,7 @@ function RecordingsPageContent() {
                               </IconButton>
                             </Tooltip>
                           ) : (
-                            <Tooltip title="Respecting live status">
+                            <Tooltip title="Disable live status check">
                               <IconButton color="info" size="small" onClick={() => handleIgnoreLiveStatus(recording)}>
                                 <PlaylistAddIcon />
                               </IconButton>

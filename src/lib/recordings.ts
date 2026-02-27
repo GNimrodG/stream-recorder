@@ -147,10 +147,10 @@ export function createRecording(data: {
     updatedAt: now,
   };
 
-  new RecordingManager(recording.id, recording.name, recording.rtspUrl, recording.startTime, recording.duration);
-
   recordings.push(recording);
   saveRecordings(recordings);
+
+  new RecordingManager(recording.id, recording.name, recording.rtspUrl, recording.startTime, recording.duration);
 
   return recording;
 }
