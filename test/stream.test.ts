@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import net from "node:net";
 import { EventEmitter } from "events";
@@ -11,16 +12,6 @@ beforeEach(() => {
 afterEach(() => {
   (net.createConnection as unknown) = originalCreateConnection;
   vi.restoreAllMocks();
-});
-
-afterEach(async () => {
-  // Ensure the connection pool is cleared between tests to avoid CSeq and socket reuse leakage
-  try {
-    const mod = await import("../src/lib/stream");
-    if (typeof mod.clearConnectionPool === "function") mod.clearConnectionPool();
-  } catch {
-    // ignore - module may not be present in some contexts
-  }
 });
 
 async function createFakeSocket(): Promise<net.Socket & { emitData?: (s: string) => void }> {
@@ -48,28 +39,6 @@ async function createFakeSocket(): Promise<net.Socket & { emitData?: (s: string)
 }
 
 describe("stream checkStreamStatus", () => {
-  it("matches responses by CSeq and resolves live", async () => {
-    const fakeSocket = await createFakeSocket();
-    (net.createConnection as unknown) = vi.fn(() => fakeSocket as unknown as net.Socket);
-
-    // import after stubbing
-    const mod = await import("../src/lib/stream");
-
-    const p1 = mod.checkStreamStatus("rtsp://localhost/stream1", 1000);
-    const p2 = mod.checkStreamStatus("rtsp://localhost/stream2", 1000);
-
-    // Simulate responses out of order: respond to p2 first
-    // send response for CSeq:2 then CSeq:1
-    fakeSocket.emitData!("RTSP/1.0 200 OK\r\nCSeq: 2\r\n\r\n");
-    fakeSocket.emitData!("RTSP/1.0 200 OK\r\nCSeq: 1\r\n\r\n");
-
-    const r1 = await p1;
-    const r2 = await p2;
-
-    expect(r1).toBe("live");
-    expect(r2).toBe("live");
-  });
-
   it("times out when no response", async () => {
     const fakeSocket = await createFakeSocket();
     (net.createConnection as unknown) = vi.fn(() => fakeSocket as unknown as net.Socket);
@@ -95,6 +64,62 @@ describe("stream checkStreamStatus", () => {
     expect(r).toBe("not_found");
   });
 
+  it("resolves live for 200 responses", async () => {
+    const fakeSocket = await createFakeSocket();
+    (net.createConnection as unknown) = vi.fn(() => fakeSocket as unknown as net.Socket);
+
+    const mod = await import("../src/lib/stream");
+
+    const p = mod.checkStreamStatus("rtsp://localhost/ok", 1000);
+    // send a 200 OK response
+    fakeSocket.emitData!("RTSP/1.0 200 OK\r\nCSeq: 1\r\n\r\n");
+
+    const r = await p;
+    expect(r).toBe("live");
+  });
+
+  it("resolves live when SDP body is present without Content-Length", async () => {
+    const fakeSocket = await createFakeSocket();
+    (net.createConnection as unknown) = vi.fn(() => fakeSocket as unknown as net.Socket);
+
+    const mod = await import("../src/lib/stream");
+
+    const p = mod.checkStreamStatus("rtsp://localhost/sdp", 1000);
+    // RTSP response headers followed by SDP (starts with v=), no Content-Length
+    fakeSocket.emitData!("RTSP/1.0 200 OK\r\nCSeq: 1\r\n\r\nv=0\r\no=- 0 0 IN IP4 127.0.0.1\r\n");
+
+    const r = await p;
+    expect(r).toBe("live");
+  });
+
+  it("resolves invalid for non-RTSP responses", async () => {
+    const fakeSocket = await createFakeSocket();
+    (net.createConnection as unknown) = vi.fn(() => fakeSocket as unknown as net.Socket);
+
+    const mod = await import("../src/lib/stream");
+
+    const p = mod.checkStreamStatus("rtsp://localhost/bad", 1000);
+    // send a response that doesn't start with RTSP/1.0
+    fakeSocket.emitData!("HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n");
+
+    const r = await p;
+    expect(r).toBe("invalid");
+  });
+
+  it("resolves invalid for non-numeric status codes", async () => {
+    const fakeSocket = await createFakeSocket();
+    (net.createConnection as unknown) = vi.fn(() => fakeSocket as unknown as net.Socket);
+
+    const mod = await import("../src/lib/stream");
+
+    const p = mod.checkStreamStatus("rtsp://localhost/badstatus", 1000);
+    // RTSP prefix but non-numeric status code
+    fakeSocket.emitData!("RTSP/1.0 ABC Weird\r\nCSeq: 1\r\n\r\n");
+
+    const r = await p;
+    expect(r).toBe("invalid");
+  });
+
   it("rejects pending requests when socket closes", async () => {
     const fakeSocket = await createFakeSocket();
     (net.createConnection as unknown) = vi.fn(() => fakeSocket as unknown as net.Socket);
@@ -110,38 +135,38 @@ describe("stream checkStreamStatus", () => {
     expect(r).toBe("error");
   });
 
-  it("ignores responses without CSeq until a proper response arrives", async () => {
-    const fakeSocket = await createFakeSocket();
-    (net.createConnection as unknown) = vi.fn(() => fakeSocket as unknown as net.Socket);
+  it("queues requests per host so only one active at a time", async () => {
+    const fakeSocket1 = await createFakeSocket();
+    const fakeSocket2 = await createFakeSocket();
+
+    let callIndex = 0;
+    (net.createConnection as unknown) = vi.fn(() => {
+      const s = callIndex === 0 ? fakeSocket1 : fakeSocket2;
+      callIndex++;
+      return s as unknown as net.Socket;
+    });
 
     const mod = await import("../src/lib/stream");
 
-    const p = mod.checkStreamStatus("rtsp://localhost/no-cseq", 1000);
-    // send a response with no CSeq (ignored), then send the proper one
-    fakeSocket.emitData!("RTSP/1.0 200 OK\r\n\r\n");
-    fakeSocket.emitData!("RTSP/1.0 200 OK\r\nCSeq: 1\r\n\r\n");
+    const p1 = mod.checkStreamStatus("rtsp://localhost/one", 1000);
+    const p2 = mod.checkStreamStatus("rtsp://localhost/two", 1000);
 
-    const r = await p;
-    expect(r).toBe("live");
-  });
+    // Only the first request should have triggered a connection immediately
+    expect(net.createConnection as unknown as any).toHaveBeenCalledTimes(1);
 
-  it("handles multiple concurrent out-of-order responses", async () => {
-    const fakeSocket = await createFakeSocket();
-    (net.createConnection as unknown) = vi.fn(() => fakeSocket as unknown as net.Socket);
+    // finalize first
+    fakeSocket1.emitData!("RTSP/1.0 200 OK\r\nCSeq: 1\r\n\r\n");
+    const r1 = await p1;
+    expect(r1).toBe("live");
 
-    const mod = await import("../src/lib/stream");
+    // wait for the queued start to be scheduled
+    await new Promise((res) => setImmediate(res));
 
-    const promises = [] as Promise<string>[];
-    for (let i = 1; i <= 5; i++) {
-      promises.push(mod.checkStreamStatus(`rtsp://localhost/multi${i}`, 1000));
-    }
+    // after first finishes, second connection should have been created
+    expect(net.createConnection as unknown as any).toHaveBeenCalledTimes(2);
 
-    // emit responses in reverse order (5..1)
-    for (let i = 5; i >= 1; i--) {
-      fakeSocket.emitData!(`RTSP/1.0 200 OK\r\nCSeq: ${i}\r\n\r\n`);
-    }
-
-    const results = await Promise.all(promises);
-    expect(results.every((r) => r === "live")).toBe(true);
+    fakeSocket2.emitData!("RTSP/1.0 404 Not Found\r\nCSeq: 1\r\n\r\n");
+    const r2 = await p2;
+    expect(r2).toBe("not_found");
   });
 });
