@@ -301,7 +301,9 @@ function RecordingsPageContent() {
     setPreviewDialogOpen(true);
   };
 
-  const filteredRecordings = filterStatus === "all" ? recordings : recordings.filter((r) => r.status === filterStatus);
+  const filteredRecordings = (
+    filterStatus === "all" ? recordings : recordings.filter((r) => r.status === filterStatus)
+  ).toSorted((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
@@ -368,12 +370,12 @@ function RecordingsPageContent() {
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell>Name</TableCell>
-                <TableCell>RTSP URL</TableCell>
-                <TableCell sx={{ width: { xs: "auto", md: "25%" } }}>Start Time</TableCell>
-                <TableCell sx={{ width: { xs: "auto", md: "15%" } }}>Duration</TableCell>
+                <TableCell sx={{ width: { xs: "auto", md: "30%" } }}>Name</TableCell>
+                <TableCell sx={{ width: { xs: "auto", md: "10%" } }}>RTSP URL</TableCell>
+                <TableCell sx={{ width: { xs: "auto", md: "10%" } }}>Start Time</TableCell>
+                <TableCell sx={{ width: { xs: "auto", md: "5%" } }}>Duration</TableCell>
                 <TableCell sx={{ width: { xs: "auto", md: "40%" } }}>Status</TableCell>
-                <TableCell>Output</TableCell>
+                <TableCell sx={{ width: { xs: "auto", md: "20%" }, minWidth: 0 }}>Output</TableCell>
                 <TableCell align="right">Actions</TableCell>
               </TableRow>
             </TableHead>

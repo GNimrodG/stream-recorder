@@ -285,11 +285,11 @@ export default function Dashboard() {
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell>Name</TableCell>
-                <TableCell>RTSP URL</TableCell>
-                <TableCell sx={{ width: "20rem" }}>Start Time</TableCell>
-                <TableCell sx={{ width: "10rem" }}>Duration</TableCell>
-                <TableCell sx={{ width: "35rem" }}>Status</TableCell>
+                <TableCell sx={{ width: { xs: "auto", md: "30%" } }}>Name</TableCell>
+                <TableCell sx={{ width: { xs: "auto", md: "10%" } }}>RTSP URL</TableCell>
+                <TableCell sx={{ width: { xs: "auto", md: "10%" } }}>Start Time</TableCell>
+                <TableCell sx={{ width: { xs: "auto", md: "10%" } }}>Duration</TableCell>
+                <TableCell sx={{ width: { xs: "auto", md: "40%" } }}>Status</TableCell>
                 <TableCell align="right">Actions</TableCell>
               </TableRow>
             </TableHead>
@@ -307,50 +307,53 @@ export default function Dashboard() {
                   </TableCell>
                 </TableRow>
               ) : (
-                recordings.map((recording) => (
-                  <TableRow key={recording.id}>
-                    <TableCell>{recording.name}</TableCell>
-                    <TableCell>
-                      <Typography
-                        variant="body2"
-                        sx={{
-                          maxWidth: "100%",
-                          minWidth: 0,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}>
-                        {recording.rtspUrl}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>{formatDate(recording.startTime)}</TableCell>
-                    <TableCell>{formatDuration(recording.duration)}</TableCell>
-                    <TableCell>
-                      <StatusDisplay recording={recording} />
-                    </TableCell>
-                    <TableCell align="right">
-                      {recording.status === "scheduled" && (
-                        <Tooltip title="Start Now">
-                          <IconButton color="success" onClick={() => handleStartRecording(recording.id)}>
-                            <PlayArrowIcon />
+                recordings
+                  .toSorted((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
+                  .slice(0, 10)
+                  .map((recording) => (
+                    <TableRow key={recording.id}>
+                      <TableCell>{recording.name}</TableCell>
+                      <TableCell>
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            maxWidth: "100%",
+                            minWidth: 0,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}>
+                          {recording.rtspUrl}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>{formatDate(recording.startTime)}</TableCell>
+                      <TableCell>{formatDuration(recording.duration)}</TableCell>
+                      <TableCell>
+                        <StatusDisplay recording={recording} />
+                      </TableCell>
+                      <TableCell align="right">
+                        {recording.status === "scheduled" && (
+                          <Tooltip title="Start Now">
+                            <IconButton color="success" onClick={() => handleStartRecording(recording.id)}>
+                              <PlayArrowIcon />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                        {(recording.status === "recording" || recording.status === "retrying") && (
+                          <Tooltip title="Stop">
+                            <IconButton color="error" onClick={() => handleStopRecording(recording.id)}>
+                              <StopIcon />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                        <Tooltip title="Delete">
+                          <IconButton color="error" onClick={() => handleDeleteRecording(recording.id)}>
+                            <DeleteIcon />
                           </IconButton>
                         </Tooltip>
-                      )}
-                      {(recording.status === "recording" || recording.status === "retrying") && (
-                        <Tooltip title="Stop">
-                          <IconButton color="error" onClick={() => handleStopRecording(recording.id)}>
-                            <StopIcon />
-                          </IconButton>
-                        </Tooltip>
-                      )}
-                      <Tooltip title="Delete">
-                        <IconButton color="error" onClick={() => handleDeleteRecording(recording.id)}>
-                          <DeleteIcon />
-                        </IconButton>
-                      </Tooltip>
-                    </TableCell>
-                  </TableRow>
-                ))
+                      </TableCell>
+                    </TableRow>
+                  ))
               )}
             </TableBody>
           </Table>

@@ -440,7 +440,7 @@ export default function StreamsPage() {
                             p: 0.5,
                             borderRadius: 1,
                           }}>
-                          {stream.rtspUrl}
+                          {stream.rtspUrl.replace(/^(rtsp:\/\/)(.*@)/, "rtsp://****@")}
                         </Typography>
                       </Tooltip>
 
