@@ -58,6 +58,11 @@ export class RecordingManager {
     return this.speed;
   }
 
+  private ignoreStreamStatus: boolean = false;
+  public get isIgnoringStreamStatus(): boolean {
+    return this.ignoreStreamStatus;
+  }
+
   public hasStarted(): boolean {
     return this.status === "recording" || this.status === "starting" || this.status === "retrying";
   }
@@ -208,6 +213,16 @@ export class RecordingManager {
     this.status = "cancelled";
   }
 
+  public disableLiveCheck() {
+    this.log("Disabling live stream status check, will record regardless of stream status.");
+    this.ignoreStreamStatus = true;
+  }
+
+  public enableLiveCheck() {
+    this.log("Enabling live stream status check, will wait for stream to be live before recording.");
+    this.ignoreStreamStatus = false;
+  }
+
   public update(data: { name?: string; url?: string; startTime?: string; duration?: number }) {
     if (this.hasStarted()) {
       throw new Error("Cannot update recording because it has already started.");
@@ -265,6 +280,12 @@ export class RecordingManager {
 
   private async _start() {
     try {
+      if (this.ignoreStreamStatus) {
+        this.log("Live stream status check is disabled, starting recording immediately.");
+        this.startRecording().then();
+        return;
+      }
+
       const status = await checkStreamStatus(this.url);
 
       if (this.abortController.signal.aborted) {
@@ -298,6 +319,17 @@ export class RecordingManager {
 
     this.startWaiterTimer = setInterval(
       async () => {
+        if (this.ignoreStreamStatus) {
+          this.log("Live stream status check is disabled, skipping status check and starting recording.");
+          this.startRecording().then();
+
+          if (this.startWaiterTimer) {
+            clearInterval(this.startWaiterTimer);
+            this.startWaiterTimer = null;
+          }
+          return;
+        }
+
         const status = await checkStreamStatus(this.url);
 
         this.reconnectAttempts++;

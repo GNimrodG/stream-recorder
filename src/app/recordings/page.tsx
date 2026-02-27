@@ -37,6 +37,8 @@ import PreviewIcon from "@mui/icons-material/Visibility";
 import EditIcon from "@mui/icons-material/Edit";
 import FolderIcon from "@mui/icons-material/Folder";
 import PlayCircleIcon from "@mui/icons-material/PlayCircle";
+import PlaylistAddIcon from "@mui/icons-material/PlaylistAdd";
+import PlaylistRemoveIcon from "@mui/icons-material/PlaylistRemove";
 import { CreateRecordingDto, RecordingWithStatus } from "@/types/recording";
 import RecordingDialog from "@/components/RecordingDialog";
 import StatusDisplay from "@/components/StatusDisplay";
@@ -244,6 +246,33 @@ function RecordingsPageContent() {
       setSnackbar({
         open: true,
         message: "Recording deleted!",
+        severity: "success",
+      });
+      fetchRecordings();
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: (error as Error).message,
+        severity: "error",
+      });
+    }
+  };
+
+  const handleIgnoreLiveStatus = async (recording: RecordingWithStatus) => {
+    try {
+      const action = recording.isIgnoringLiveStatus ? "enableLiveCheck" : "disableLiveCheck";
+      const response = await fetch(`/api/recordings/${recording.id}?action=${action}`, {
+        method: "POST",
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to update live status setting");
+      }
+      setSnackbar({
+        open: true,
+        message: recording.isIgnoringLiveStatus
+          ? "Now respecting live status for this recording"
+          : "Now ignoring live status for this recording",
         severity: "success",
       });
       fetchRecordings();
@@ -466,6 +495,24 @@ function RecordingsPageContent() {
                             </IconButton>
                           </Tooltip>
                         )}
+                        {recording.status !== "failed" &&
+                          recording.status !== "cancelled" &&
+                          (recording.isIgnoringLiveStatus ? (
+                            <Tooltip title="Ignoring live status">
+                              <IconButton
+                                color="success"
+                                size="small"
+                                onClick={() => handleIgnoreLiveStatus(recording)}>
+                                <PlaylistRemoveIcon />
+                              </IconButton>
+                            </Tooltip>
+                          ) : (
+                            <Tooltip title="Respecting live status">
+                              <IconButton color="info" size="small" onClick={() => handleIgnoreLiveStatus(recording)}>
+                                <PlaylistAddIcon />
+                              </IconButton>
+                            </Tooltip>
+                          ))}
                         {recording.status === "completed" && recording.outputPath && (
                           <>
                             <Tooltip title="Watch">

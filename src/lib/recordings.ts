@@ -83,31 +83,35 @@ export function getAllRecordings(): Recording[] {
   return loadRecordings();
 }
 
+function getRecordingStatus(recording: Recording): RecordingWithStatus {
+  const manager = RecordingManager.getInstance(recording.id);
+
+  if (!manager) {
+    // If no manager exists, determine status based on success field
+    const status = recording.success === undefined ? "scheduled" : recording.success ? "completed" : "failed";
+    return {
+      ...recording,
+      status,
+      isIgnoringLiveStatus: false,
+    };
+  }
+
+  return {
+    ...recording,
+    status: manager.currentStatus,
+    frames: manager.frames,
+    fps: manager.currentFps,
+    time: manager.currentTime,
+    bitrate: manager.currentBitrate,
+    speed: manager.currentSpeed,
+    isIgnoringLiveStatus: manager.isIgnoringStreamStatus,
+  };
+}
+
 export function getAllRecordingsWithStats(): RecordingWithStatus[] {
   const recordings = loadRecordings();
 
-  return recordings.map((recording) => {
-    const manager = RecordingManager.getInstance(recording.id);
-
-    if (!manager) {
-      // If no manager exists, determine status based on success field
-      const status = recording.success === undefined ? "scheduled" : recording.success ? "completed" : "failed";
-      return {
-        ...recording,
-        status,
-      };
-    }
-
-    return {
-      ...recording,
-      status: manager.currentStatus,
-      frames: manager.frames,
-      fps: manager.currentFps,
-      time: manager.currentTime,
-      bitrate: manager.currentBitrate,
-      speed: manager.currentSpeed,
-    };
-  });
+  return recordings.map((recording) => getRecordingStatus(recording));
 }
 
 export function getRecordingById(id: string): Recording | undefined {
@@ -121,26 +125,7 @@ export function getRecordingWithStatsById(id: string): RecordingWithStatus | und
     return undefined;
   }
 
-  const manager = RecordingManager.getInstance(recording.id);
-
-  if (!manager) {
-    // If no manager exists, determine status based on success field
-    const status = recording.success === undefined ? "scheduled" : recording.success ? "completed" : "failed";
-    return {
-      ...recording,
-      status,
-    };
-  }
-
-  return {
-    ...recording,
-    status: manager.currentStatus,
-    frames: manager.frames,
-    fps: manager.currentFps,
-    time: manager.currentTime,
-    bitrate: manager.currentBitrate,
-    speed: manager.currentSpeed,
-  };
+  return getRecordingStatus(recording);
 }
 
 export function createRecording(data: {

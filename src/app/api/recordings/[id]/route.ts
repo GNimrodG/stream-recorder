@@ -75,6 +75,20 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       manager.stop();
       return NextResponse.json({ success: true, message: "Recording stopped" });
 
+    case "disableLiveCheck":
+      if (manager.isIgnoringStreamStatus)
+        return NextResponse.json({ error: "Live check is already disabled for this recording." }, { status: 400 });
+
+      manager.disableLiveCheck();
+      return NextResponse.json({ success: true, message: "Live check disabled for this recording" });
+
+    case "enableLiveCheck":
+      if (!manager.isIgnoringStreamStatus)
+        return NextResponse.json({ error: "Live check is already enabled for this recording." }, { status: 400 });
+
+      manager.enableLiveCheck();
+      return NextResponse.json({ success: true, message: "Live check enabled for this recording" });
+
     default:
       return NextResponse.json({ error: "Invalid action. Use ?action=start or ?action=stop" }, { status: 400 });
   }

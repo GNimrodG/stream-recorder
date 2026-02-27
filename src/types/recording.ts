@@ -28,6 +28,7 @@ export interface RecordingWithStatus extends Recording {
   time?: string;
   bitrate?: string;
   speed?: number;
+  isIgnoringLiveStatus: boolean;
 }
 
 export interface CreateRecordingDto {
