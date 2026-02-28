@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import {
   Box,
   Button,
@@ -11,6 +11,7 @@ import {
   DialogContent,
   DialogTitle,
   FormControlLabel,
+  LinearProgress,
   Typography,
 } from "@mui/material";
 import DownloadIcon from "@mui/icons-material/Download";
@@ -64,34 +65,50 @@ export default function RecordingLogsDialog({ open, onCloseAction, recording }: 
     defaultValue: true,
   });
 
-  const fetchLogs = useCallback(async (id: string, tail = 0) => {
-    setLogsLoading(true);
-    setLogsContent(null);
-    try {
-      const url = `/api/recordings/${id}/logs` + (tail > 0 ? `?tail=${tail}` : "");
-      const res = await fetch(url);
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: "Failed to load logs" }));
-        throw new Error(err.error || "Failed to load logs");
-      }
+  const [transition, startTransition] = useTransition();
 
-      const data = await res.json();
-      setLogsContent(data.content ?? "");
-    } catch (error) {
-      setLogsContent(`Error loading logs: ${(error as Error).message}`);
-    } finally {
-      setLogsLoading(false);
-    }
+  // When logs are very large, load only the tail by default (few thousand lines) to avoid UI freezes.
+  const DEFAULT_TAIL = 2000; // lines
+  const TAIL_INCREMENT = 2000;
+  const [tailLines, setTailLines] = useState<number>(DEFAULT_TAIL);
+
+  const fetchLogs = useCallback(async (id: string, tail = 0) => {
+    startTransition(async () => {
+      setLogsLoading(true);
+      try {
+        const url = `/api/recordings/${id}/logs` + (tail > 0 ? `?tail=${tail}` : "");
+        const res = await fetch(url);
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: "Failed to load logs" }));
+          throw new Error(err.error || "Failed to load logs");
+        }
+
+        const data = await res.json();
+        setLogsContent(data.content ?? "");
+      } catch (error) {
+        setLogsContent(`Error loading logs: ${(error as Error).message}`);
+      } finally {
+        setLogsLoading(false);
+      }
+    });
   }, []);
 
   useEffect(() => {
     if (open && recording) {
-      fetchLogs(recording.id);
+      // If tailLines is 0 we request the full file (no ?tail param)
+      fetchLogs(recording.id, tailLines === 0 ? 0 : tailLines);
     } else if (!open) {
       // clear when closed
       setLogsContent(null);
+      // reset tail preference to default when closed so re-opening starts small again
+      setTailLines(DEFAULT_TAIL);
     }
-  }, [open, recording, fetchLogs]);
+  }, [open, recording, fetchLogs, tailLines]);
+
+  // Reset expanded placeholders whenever logs content changes
+  useEffect(() => {
+    setExpandedPlaceholders({});
+  }, [logsContent]);
 
   // Build structured display items (lines and placeholders) so placeholders can be expanded
   const displayedItems = useMemo<DisplayItem[] | null>(() => {
@@ -191,6 +208,17 @@ export default function RecordingLogsDialog({ open, onCloseAction, recording }: 
     }
   };
 
+  // Derived metrics about the current content
+  const currentLineCount = useMemo(() => {
+    if (!logsContent) return 0;
+    return logsContent.split(/\r?\n/).length;
+  }, [logsContent]);
+
+  const isShowingTail = tailLines > 0;
+  // If the server returned fewer lines than requested tail, we've likely fetched the whole file
+  const canLoadMore = isShowingTail && currentLineCount >= tailLines && currentLineCount > 0;
+  const likelyFullFile = isShowingTail && currentLineCount > 0 && currentLineCount < tailLines;
+
   return (
     <Dialog open={open} onClose={onCloseAction} maxWidth="xl" fullWidth>
       <DialogTitle>Logs: {recording?.name}</DialogTitle>
@@ -225,7 +253,52 @@ export default function RecordingLogsDialog({ open, onCloseAction, recording }: 
           />
         </Box>
 
-        {logsLoading ? (
+        {/* Tail / load controls: show when logs are potentially large or when tailing is active */}
+        <Box sx={{ display: "flex", gap: 1, alignItems: "center", mb: 1 }}>
+          {isShowingTail ? (
+            <Typography color="text.secondary" sx={{ mr: 1 }}>
+              Showing last {tailLines} lines (retrieved {currentLineCount} lines)
+            </Typography>
+          ) : (
+            <Typography color="text.secondary" sx={{ mr: 1 }}>
+              Showing full logs ({currentLineCount} lines)
+            </Typography>
+          )}
+
+          {recording && (
+            <>
+              <Button
+                size="small"
+                onClick={() => {
+                  // request more lines (increase tail and refetch)
+                  const next = (tailLines || DEFAULT_TAIL) + TAIL_INCREMENT;
+                  setTailLines(next);
+                  fetchLogs(recording.id, next);
+                }}
+                disabled={logsLoading || !canLoadMore}>
+                Load more
+              </Button>
+
+              <Button
+                size="small"
+                onClick={() => {
+                  // request the full logs
+                  setTailLines(0);
+                  fetchLogs(recording.id, 0);
+                }}
+                disabled={logsLoading || !isShowingTail || likelyFullFile}>
+                Load full logs
+              </Button>
+            </>
+          )}
+          {likelyFullFile && (
+            <Typography color="text.secondary" sx={{ ml: 1 }}>
+              Full logs retrieved (file smaller than requested tail).
+            </Typography>
+          )}
+        </Box>
+
+        {logsLoading && !displayedItems?.length ? (
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 4 }}>
             <CircularProgress />
           </Box>
@@ -246,6 +319,15 @@ export default function RecordingLogsDialog({ open, onCloseAction, recording }: 
               borderRadius: 1,
               p: 1,
             }}>
+            {transition && (
+              <Box
+                sx={{
+                  position: "sticky",
+                  top: 0,
+                }}>
+                <LinearProgress sx={{ width: "100%" }} />
+              </Box>
+            )}
             {displayedItems.length === 0 ? (
               <Typography color="text.secondary">No logs to show after applying filters.</Typography>
             ) : (
