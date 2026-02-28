@@ -93,36 +93,6 @@ export default function StreamsPage() {
     fetchStreams();
   }, [fetchStreams]);
 
-  const fetchStreamStatuses = useCallback(async () => {
-    try {
-      const response = await fetch(`/api/streams/status`);
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch stream statuses");
-      }
-
-      const data = (await response.json()) as StreamStatusResult[];
-      const statusMap: Record<string, StreamStatusResult> = {};
-      data.forEach((status) => {
-        statusMap[status.id] = status;
-      });
-      setStreamStatuses(statusMap);
-    } catch (error) {
-      setSnackbar({
-        open: true,
-        message: "Failed to check stream status: " + (error as Error).message,
-        severity: "error",
-      });
-    }
-  }, []);
-
-  // Fetch stream statuses on initial load and every 5 minutes
-  useEffect(() => {
-    fetchStreamStatuses();
-    const interval = setInterval(fetchStreamStatuses, 5 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, [fetchStreamStatuses]);
-
   const [isFetchingStatus, setIsFetchingStatus] = useState(false);
 
   const fetchStreamStatus = useCallback(async (id: string) => {
@@ -146,6 +116,26 @@ export default function StreamsPage() {
       setIsFetchingStatus(false);
     }
   }, []);
+
+  const fetchStreamStatuses = useCallback(async () => {
+    try {
+      const statusPromises = streams.map((stream) => fetchStreamStatus(stream.id));
+      await Promise.allSettled(statusPromises);
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: "Failed to check stream status: " + (error as Error).message,
+        severity: "error",
+      });
+    }
+  }, [fetchStreamStatus, streams]);
+
+  // Fetch stream statuses on initial load and every 5 minutes
+  useEffect(() => {
+    fetchStreamStatuses();
+    const interval = setInterval(fetchStreamStatuses, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [fetchStreamStatuses]);
 
   const handleOpenDialog = (stream?: SavedStream) => {
     if (stream) {

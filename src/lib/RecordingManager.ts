@@ -487,8 +487,15 @@ export class RecordingManager {
 
     if (this.attemptPaths.length > 0) {
       try {
-        mergeRecordingParts(this.attemptPaths, this.FINAL_FILE_PATH);
-        this.log(`Merged ${this.attemptPaths.length} recording attempts into final file: ${this.FINAL_FILE_PATH}`);
+        if (mergeRecordingParts(this.attemptPaths, this.FINAL_FILE_PATH)) {
+          this.log(`Merged ${this.attemptPaths.length} recording attempts into final file: ${this.FINAL_FILE_PATH}`);
+        } else {
+          this.log(`Merge completed but final file may be corrupted: ${this.FINAL_FILE_PATH}`);
+          errorMessage =
+            `Recording completed but final file may be corrupted: ${this.FINAL_FILE_PATH}` +
+            (errorMessage ? ` | ${errorMessage}` : "");
+          this.status = "failed";
+        }
       } catch (err) {
         this.log(`Failed to merge recording attempts: ${(err as Error).message || err}`);
         errorMessage =

@@ -29,7 +29,7 @@ import StopIcon from "@mui/icons-material/Stop";
 import DeleteIcon from "@mui/icons-material/Delete";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import { CreateRecordingDto, RecordingStats } from "@/types/recording";
-import RecordingDialog from "@/components/RecordingDialog";
+import RecordingDialog from "@/components/dialogs/RecordingDialog";
 import { formatDate, formatDuration } from "@/utils";
 import StatusDisplay from "@/components/StatusDisplay";
 import useRecordings from "@/hooks/useRecordings";

@@ -1,7 +1,7 @@
 import { Box, Button, Typography } from "@mui/material";
 import { formatDuration } from "@/utils";
 import { FC } from "react";
-import NumberField from "@/components/NumberField";
+import NumberField from "@/components/inputs/NumberField";
 
 export interface DurationInputProps {
   value: number; // Duration in seconds

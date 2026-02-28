@@ -8,10 +8,6 @@ import {
   Button,
   Chip,
   CircularProgress,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   IconButton,
   Paper,
   Snackbar,
@@ -34,14 +30,17 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import DownloadIcon from "@mui/icons-material/Download";
 import PreviewIcon from "@mui/icons-material/Visibility";
+import ArticleIcon from "@mui/icons-material/Article";
 import EditIcon from "@mui/icons-material/Edit";
 import FolderIcon from "@mui/icons-material/Folder";
 import PlayCircleIcon from "@mui/icons-material/PlayCircle";
 import PlaylistAddIcon from "@mui/icons-material/PlaylistAdd";
 import PlaylistRemoveIcon from "@mui/icons-material/PlaylistRemove";
 import { CreateRecordingDto, RecordingWithStatus } from "@/types/recording";
-import RecordingDialog from "@/components/RecordingDialog";
+import RecordingDialog from "@/components/dialogs/RecordingDialog";
+import RecordingLogsDialog from "@/components/dialogs/RecordingLogsDialog";
 import StatusDisplay from "@/components/StatusDisplay";
+import RecordingPreviewDialog from "@/components/dialogs/RecordingPreviewDialog";
 import { formatDate, formatDuration } from "@/utils";
 
 export default function RecordingsPage() {
@@ -58,7 +57,7 @@ function RecordingsPageContent() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
+  const [previewRecording, setPreviewRecording] = useState<RecordingWithStatus | null>(null);
   const [selectedRecording, setSelectedRecording] = useState<RecordingWithStatus | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [snackbar, setSnackbar] = useState<{
@@ -297,8 +296,7 @@ function RecordingsPageContent() {
   };
 
   const handlePreviewClick = (recording: RecordingWithStatus) => {
-    setSelectedRecording(recording);
-    setPreviewDialogOpen(true);
+    setPreviewRecording(recording);
   };
 
   const filteredRecordings = (
@@ -473,6 +471,11 @@ function RecordingsPageContent() {
                             </IconButton>
                           </Tooltip>
                         )}
+                        <Tooltip title="View Logs">
+                          <IconButton color="inherit" size="small" onClick={() => setSelectedRecording(recording)}>
+                            <ArticleIcon />
+                          </IconButton>
+                        </Tooltip>
                         {recording.status === "scheduled" && (
                           <>
                             <Tooltip title="Edit">
@@ -572,35 +575,18 @@ function RecordingsPageContent() {
       />
 
       {/* Preview Dialog */}
-      <Dialog open={previewDialogOpen} onClose={() => setPreviewDialogOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle>Stream Preview: {selectedRecording?.name}</DialogTitle>
-        <DialogContent>
-          {selectedRecording && (
-            <Box
-              sx={{
-                width: "100%",
-                aspectRatio: "16/9",
-                bgcolor: "black",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}>
-              <iframe
-                src={`/api/recordings/${selectedRecording.id}/preview`}
-                style={{ width: "100%", height: "100%", border: "none" }}
-                title="Stream Preview"
-              />
-            </Box>
-          )}
-          <Alert severity="info" sx={{ mt: 2 }}>
-            Live preview requires the stream to be actively recording. The preview shows a snapshot of the current
-            stream.
-          </Alert>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setPreviewDialogOpen(false)}>Close</Button>
-        </DialogActions>
-      </Dialog>
+      <RecordingPreviewDialog
+        open={!!previewRecording}
+        onCloseAction={() => setPreviewRecording(null)}
+        recording={previewRecording}
+      />
+
+      {/* Logs Dialog */}
+      <RecordingLogsDialog
+        open={!!selectedRecording}
+        onCloseAction={() => setSelectedRecording(null)}
+        recording={selectedRecording}
+      />
 
       {/* Snackbar */}
       <Snackbar open={snackbar.open} autoHideDuration={4000} onClose={() => setSnackbar({ ...snackbar, open: false })}>

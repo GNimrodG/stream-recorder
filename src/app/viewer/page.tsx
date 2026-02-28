@@ -12,7 +12,6 @@ import {
   Chip,
   CircularProgress,
   Dialog,
-  DialogActions,
   DialogContent,
   DialogTitle,
   Grid,
@@ -36,14 +35,15 @@ import DownloadIcon from "@mui/icons-material/Download";
 import CloseIcon from "@mui/icons-material/Close";
 import LiveTvIcon from "@mui/icons-material/LiveTv";
 import VideoLibraryIcon from "@mui/icons-material/VideoLibrary";
-import { Recording } from "@/types/recording";
+import { RecordingWithStatus } from "@/types/recording";
 import useRecordings from "@/hooks/useRecordings";
 import StatusDisplay from "@/components/StatusDisplay";
 import { formatDate, formatDuration } from "@/utils";
+import RecordingPreviewDialog from "@/components/dialogs/RecordingPreviewDialog";
 
 export default function ViewerPage() {
   const { recordings, loading, fetchRecordings } = useRecordings();
-  const [selectedRecording, setSelectedRecording] = useState<Recording | null>(null);
+  const [selectedRecording, setSelectedRecording] = useState<RecordingWithStatus | null>(null);
   const [videoDialogOpen, setVideoDialogOpen] = useState(false);
   const [liveDialogOpen, setLiveDialogOpen] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>("all");
@@ -67,7 +67,7 @@ export default function ViewerPage() {
   const [isLoadingVideo, setIsLoadingVideo] = useState(true);
   const [isVideoError, setIsVideoError] = useState(false);
 
-  const handleWatchVideo = (recording: Recording) => {
+  const handleWatchVideo = (recording: RecordingWithStatus) => {
     setIsLoadingVideo(true);
     setSelectedRecording(recording);
     setVideoDialogOpen(true);
@@ -75,7 +75,7 @@ export default function ViewerPage() {
     setCurrentTime(0);
   };
 
-  const handleWatchLive = (recording: Recording) => {
+  const handleWatchLive = (recording: RecordingWithStatus) => {
     setSelectedRecording(recording);
     setLiveDialogOpen(true);
   };
@@ -465,38 +465,11 @@ export default function ViewerPage() {
       </Dialog>
 
       {/* Live Preview Dialog */}
-      <Dialog open={liveDialogOpen} onClose={handleCloseLiveDialog} maxWidth="md" fullWidth>
-        <DialogTitle
-          sx={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <Typography variant="h6">{selectedRecording?.name}</Typography>
-          </Box>
-          <IconButton onClick={handleCloseLiveDialog}>
-            <CloseIcon />
-          </IconButton>
-        </DialogTitle>
-        <DialogContent>
-          {selectedRecording && (
-            <Box sx={{ width: "100%", aspectRatio: "16/9", bgcolor: "black" }}>
-              <iframe
-                src={`/api/recordings/${selectedRecording.id}/preview`}
-                style={{ width: "100%", height: "100%", border: "none" }}
-                title="Live Stream Preview"
-              />
-            </Box>
-          )}
-          <Alert severity="info" sx={{ mt: 2 }}>
-            Live preview shows snapshots that refresh automatically. For the actual recording, wait until it completes.
-          </Alert>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseLiveDialog}>Close</Button>
-        </DialogActions>
-      </Dialog>
+      <RecordingPreviewDialog
+        open={liveDialogOpen}
+        onCloseAction={handleCloseLiveDialog}
+        recording={selectedRecording}
+      />
 
       {/* Snackbar */}
       <Snackbar open={snackbar.open} autoHideDuration={4000} onClose={() => setSnackbar({ ...snackbar, open: false })}>

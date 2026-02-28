@@ -9,9 +9,10 @@ import { Settings } from "@/types/settings";
  * @param partPaths - Array of file paths to the recording parts that need to be merged
  * @param finalPath - The file path where the final merged recording should be saved
  * @throws Will throw an error if FFmpeg fails to merge the files or if file operations fail
+ * @return Returns true if the merge was successful, false if the final file size is significantly smaller than the total size of the parts (indicating a potential issue with the merge)
  */
-export function mergeRecordingParts(partPaths: string[], finalPath: string): void {
-  if (!partPaths?.length) return;
+export function mergeRecordingParts(partPaths: string[], finalPath: string): boolean {
+  if (!partPaths?.length) return false;
   if (partPaths.length === 1) {
     // Nothing to merge, just ensure finalPath points to the single part
     const single = partPaths[0];
@@ -22,12 +23,24 @@ export function mergeRecordingParts(partPaths: string[], finalPath: string): voi
         throw new Error(`Failed to move ${single} to ${finalPath}: ${err}`);
       }
     }
-    return;
+    return true;
   }
 
   // Create a temporary list file with paths escaped for ffmpeg concat
   const listFile = path.join(path.dirname(finalPath), `concat_${path.basename(finalPath)}.txt`);
-  const lines = partPaths.map((p) => `file '${path.basename(p).replace(/'/g, "'\\''")}'`);
+  const lines = partPaths
+    .filter((p) => {
+      const exists = fs.existsSync(p);
+      if (!exists) {
+        console.warn(`Warning: Part file does not exist and will be skipped in concat: ${p}`);
+      }
+      return exists;
+    })
+    .map((p) => `file '${path.basename(p).replace(/'/g, "'\\''")}'`);
+
+  if (!lines.length) {
+    throw new Error("No valid part files found to merge");
+  }
 
   try {
     fs.writeFileSync(listFile, lines.join("\n"), { encoding: "utf-8" });
@@ -65,14 +78,15 @@ export function mergeRecordingParts(partPaths: string[], finalPath: string): voi
       }
     }
 
-    console.log(`Total size of source parts: ${sourceSize} bytes`);
+    console.log(`Total size of source parts: ${sourceSize / 1024 / 1024} MB`);
 
     if (res.status === 0 && finalFileStats.size < sourceSize * 0.9) {
       console.warn(
-        `Warning: Final merged file size (${finalFileStats.size} bytes) is significantly smaller than total source size (${sourceSize} bytes). This may indicate a problem with the merge.`,
+        `Warning: Final merged file size (${finalFileStats.size / 1024 / 1024} MB) is significantly smaller than total source size (${sourceSize / 1024 / 1024} MB). This may indicate a problem with the merge.`,
       );
+      return false;
     } else if (res.status === 0) {
-      console.log(`Merge completed successfully with final file size ${finalFileStats.size} bytes`);
+      console.log(`Merge completed successfully with final file size ${finalFileStats.size / 1024 / 1024} MB`);
       // Delete source parts after successful merge
       for (const part of partPaths) {
         try {
@@ -83,6 +97,7 @@ export function mergeRecordingParts(partPaths: string[], finalPath: string): voi
         }
       }
     }
+    return true;
   } catch (err) {
     console.warn(`Failed to get stats for final merged file ${finalPath}: ${err}`);
   }
@@ -93,6 +108,8 @@ export function mergeRecordingParts(partPaths: string[], finalPath: string): voi
   if (res.status !== 0) {
     throw new Error(`FFmpeg concat failed: ${res.stderr || res.stdout}`);
   }
+
+  return true;
 }
 
 // Build FFmpeg arguments based on settings

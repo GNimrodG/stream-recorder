@@ -37,7 +37,7 @@ import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CancelIcon from "@mui/icons-material/Cancel";
 import DeleteSweepIcon from "@mui/icons-material/DeleteSweep";
 import { defaultSettings, Settings } from "@/types/settings";
-import NumberField from "@/components/NumberField";
+import NumberField from "@/components/inputs/NumberField";
 
 interface HardwareAccelInfo {
   nvidia: boolean;

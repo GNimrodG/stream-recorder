@@ -19,7 +19,7 @@ import { DateTimePicker } from "@mui/x-date-pickers/DateTimePicker";
 import LinkIcon from "@mui/icons-material/Link";
 import { CreateRecordingDto } from "@/types/recording";
 import { SavedStream } from "@/types/stream";
-import DurationInput from "@/components/DurationInput";
+import DurationInput from "@/components/inputs/DurationInput";
 import { useCallback, useEffect, useState } from "react";
 
 interface RecordingDialogProps {

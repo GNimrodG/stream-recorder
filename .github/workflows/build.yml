@@ -1,19 +1,19 @@
 name: Build and Push Docker Image
 
 on:
-  push:
-    branches:
-      - master
-  pull_request:
-    branches:
-      - master
+  workflow_run:
+    workflows:
+      - "CI"
+    types:
+      - completed
 
 jobs:
   build-and-push:
     name: Build and Push
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     env:
-      SHOULD_PUSH: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/master' && secrets.DOCKER_REGISTRY_USERNAME != '' }}
+      SHOULD_PUSH: ${{ github.event.workflow_run.event != 'pull_request' && github.event.workflow_run.head_branch == 'master' && secrets.DOCKER_REGISTRY_USERNAME != '' }}
       DEPLOYMENT_WEBHOOK_URL: ${{ secrets.DEPLOYMENT_WEBHOOK_URL }}
     steps:
       - name: Checkout
@@ -65,6 +65,4 @@ jobs:
       - name: Deploy
         continue-on-error: true
         if: env.SHOULD_PUSH == 'true' && env.DEPLOYMENT_WEBHOOK_URL != ''
-        uses: wei/curl@v1
-        with:
-          args: -X POST ${{ secrets.DEPLOYMENT_WEBHOOK_URL }}
+        run: curl -fsS -X POST "${{ secrets.DEPLOYMENT_WEBHOOK_URL }}" || true
