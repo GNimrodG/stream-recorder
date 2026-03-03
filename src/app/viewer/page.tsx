@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Alert,
@@ -43,6 +43,14 @@ import { formatDate, formatDuration } from "@/utils";
 import RecordingPreviewDialog from "@/components/dialogs/RecordingPreviewDialog";
 
 export default function ViewerPage() {
+  return (
+    <Suspense fallback={<CircularProgress />}>
+      <ViewerPageContent />
+    </Suspense>
+  );
+}
+
+function ViewerPageContent() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
