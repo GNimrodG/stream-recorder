@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import net from "node:net";
 import { EventEmitter } from "events";
 
@@ -34,6 +34,10 @@ async function createFakeSocket(): Promise<net.Socket & { emitData?: (s: string)
     emitData(s: string) {
       this.emit("data", Buffer.from(s));
     }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    setTimeout(_timeout: number) {
+      return this;
+    }
   }
   return new FakeSocket() as unknown as net.Socket & { emitData?: (s: string) => void };
 }
@@ -47,7 +51,7 @@ describe("stream checkStreamStatus", () => {
 
     const p = mod.checkStreamStatus("rtsp://localhost/stream1", 50);
     const r = await p;
-    expect(r).toBe("timeout");
+    expect(r).toBe("resp_timeout");
   });
 
   it("resolves not_found for 404 responses", async () => {
