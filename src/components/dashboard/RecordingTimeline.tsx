@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { Box, Typography } from "@mui/material";
 import { RecordingWithStatus } from "@/types/recording";
 import { formatDate, formatDuration } from "@/utils";
@@ -9,6 +9,14 @@ const MS_PER_HOUR = 60 * MS_PER_MINUTE;
 const MS_PER_DAY = 24 * MS_PER_HOUR;
 
 const ACTIVE_STATUSES = new Set(["starting", "recording", "retrying"]);
+const STATUS_COLORS: Record<string, string> = {
+  completed: "#2e7d32",
+  recording: "#d32f2f",
+  starting: "#d32f2f",
+  retrying: "#d32f2f",
+  failed: "#f57c00",
+  cancelled: "#6b7280",
+};
 
 type TimelinePoint = {
   recording: RecordingWithStatus;
@@ -25,24 +33,9 @@ type TimelineLaneBar = {
   endDiff: number;
 };
 
-const getStatusColor = (status: string) => {
-  switch (status) {
-    case "completed":
-      return "#2e7d32";
-    case "recording":
-    case "starting":
-    case "retrying":
-      return "#d32f2f";
-    case "failed":
-      return "#f57c00";
-    case "cancelled":
-      return "#6b7280";
-    default:
-      return "#0288d1";
-  }
-};
+const getStatusColor = (status: string): string => STATUS_COLORS[status] ?? "#0288d1";
 
-const getTimelineEndMs = (recording: RecordingWithStatus, nowMs: number) => {
+const getTimelineEndMs = (recording: RecordingWithStatus, nowMs: number): number => {
   const startMs = new Date(recording.startTime).getTime();
   const plannedEndMs = startMs + Math.max(0, recording.duration) * 1000;
   const finalEndMs = new Date(recording.endedAt ?? recording.completedAt ?? "").getTime();
@@ -52,65 +45,68 @@ const getTimelineEndMs = (recording: RecordingWithStatus, nowMs: number) => {
   }
 
   if (ACTIVE_STATUSES.has(recording.status)) {
-    // Keep active bars bounded to "now" so long planned durations do not stretch the whole timeline.
     return Math.max(nowMs, startMs);
   }
 
   return Math.max(plannedEndMs, startMs);
 };
 
-const formatDayLabel = (timestampMs: number) => {
-  const date = new Date(timestampMs);
-  return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
-};
+// Cached formatters to avoid recreating Date objects
+const dateFormatter = new Intl.DateTimeFormat(undefined, {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
 
-const formatTickLabel = (timestampMs: number) => {
-  const date = new Date(timestampMs);
-  return date.toLocaleTimeString(undefined, {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-};
+const timeFormatter = new Intl.DateTimeFormat(undefined, {
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+const formatDayLabel = (timestampMs: number): string => dateFormatter.format(new Date(timestampMs));
+const formatTickLabel = (timestampMs: number): string => timeFormatter.format(new Date(timestampMs));
 
 const createTimelineModel = (recordings: RecordingWithStatus[]) => {
-  if (!recordings.length) {
-    return null;
-  }
+  if (!recordings.length) return null;
 
   const nowMs = Date.now();
-  const points = recordings
-    .map((recording) => {
-      const startMs = new Date(recording.startTime).getTime();
-      if (!Number.isFinite(startMs)) {
-        return null;
-      }
+  const points: TimelinePoint[] = [];
 
-      return {
+  // Single pass to create points
+  for (const recording of recordings) {
+    const startMs = new Date(recording.startTime).getTime();
+    if (Number.isFinite(startMs)) {
+      points.push({
         recording,
         startMin: Math.floor(startMs / MS_PER_MINUTE) * MS_PER_MINUTE,
         endMin: Math.ceil(getTimelineEndMs(recording, nowMs) / MS_PER_MINUTE) * MS_PER_MINUTE,
-      } as TimelinePoint;
-    })
-    .filter((point): point is TimelinePoint => Boolean(point));
-
-  if (!points.length) {
-    return null;
+      });
+    }
   }
 
-  const minStartMin = Math.floor(Math.min(...points.map((point) => point.startMin)) / MS_PER_HOUR) * MS_PER_HOUR;
-  const maxEndMin = Math.ceil(Math.max(...points.map((point) => point.endMin)) / MS_PER_HOUR) * MS_PER_HOUR;
+  if (!points.length) return null;
 
-  if (!Number.isFinite(minStartMin) || !Number.isFinite(maxEndMin)) {
-    return null;
+  // Calculate timeline bounds
+  let minStartMin = Infinity;
+  let maxEndMin = -Infinity;
+  for (const point of points) {
+    minStartMin = Math.min(minStartMin, point.startMin);
+    maxEndMin = Math.max(maxEndMin, point.endMin);
   }
+
+  minStartMin = Math.floor(minStartMin / MS_PER_HOUR) * MS_PER_HOUR;
+  maxEndMin = Math.ceil(maxEndMin / MS_PER_HOUR) * MS_PER_HOUR;
+
+  if (!Number.isFinite(minStartMin) || !Number.isFinite(maxEndMin)) return null;
 
   const totalMinutes = Math.ceil((maxEndMin - minStartMin) / MS_PER_MINUTE);
   const totalColumns = Math.ceil(totalMinutes / 60);
 
+  // Build day marks
   const dayMarks: { fromIndex: number; toIndex: number; label: string }[] = [];
   let currentDayStartMin = Math.floor(minStartMin / MS_PER_DAY) * MS_PER_DAY;
   while (currentDayStartMin < maxEndMin) {
-    const index = Math.floor((currentDayStartMin - minStartMin) / MS_PER_HOUR);
+    const index = Math.floor((currentDayStartMin - minStartMin) / MS_PER_HOUR) - 1;
     dayMarks.push({
       fromIndex: Math.max(0, index),
       toIndex: index + 24,
@@ -119,6 +115,7 @@ const createTimelineModel = (recordings: RecordingWithStatus[]) => {
     currentDayStartMin += MS_PER_DAY;
   }
 
+  // Build hour marks
   const hourMarks: { index: number; label: string; from: number; to: number }[] = [];
   let currentHourMin = Math.ceil(minStartMin / MS_PER_HOUR) * MS_PER_HOUR;
   while (currentHourMin < maxEndMin) {
@@ -132,46 +129,38 @@ const createTimelineModel = (recordings: RecordingWithStatus[]) => {
     currentHourMin += MS_PER_HOUR;
   }
 
-  const pointsByStartTime = points.toSorted((a, b) => a.startMin - b.startMin || a.endMin - b.endMin);
+  // Layout recording bars into lanes
+  points.sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin);
   const laneEndIndexes: number[] = [];
   const lanes: TimelineLaneBar[][] = [];
 
-  for (const point of pointsByStartTime) {
-    const actualDuration = (point.endMin - point.startMin) / MS_PER_MINUTE;
-
+  for (const point of points) {
     const startIndex = Math.floor((point.startMin - minStartMin) / MS_PER_HOUR);
     const endIndex = Math.ceil((point.endMin - minStartMin) / MS_PER_HOUR);
-
-    // start diff: if the recording starts at 10:10 and the hour mark is at 10:00, then the margin is 10 minutes. If it starts at 9:50, the margin is 50 minutes (or -10 minutes mod 60). This can be used to add padding inside the lane bars if desired.
     const startDiff = (point.startMin - minStartMin) % MS_PER_HOUR;
     const endDiff = (point.endMin - minStartMin) % MS_PER_HOUR;
 
+    // Find first available lane
     let laneIndex = laneEndIndexes.findIndex((laneEndIndex) => laneEndIndex <= startIndex);
     if (laneIndex < 0) {
       laneIndex = laneEndIndexes.length;
-      laneEndIndexes.push(0);
+      laneEndIndexes.push(endIndex);
       lanes.push([]);
+    } else {
+      laneEndIndexes[laneIndex] = endIndex;
     }
 
-    laneEndIndexes[laneIndex] = endIndex;
     lanes[laneIndex].push({
       recording: point.recording,
+      actualDuration: (point.endMin - point.startMin) / MS_PER_MINUTE,
       startIndex,
       endIndex,
       startDiff,
       endDiff,
-      actualDuration,
     });
   }
 
-  return {
-    minStartMin,
-    maxEndMin,
-    totalColumns,
-    dayMarks,
-    hourMarks,
-    lanes,
-  };
+  return { minStartMin, maxEndMin, totalColumns, dayMarks, hourMarks, lanes };
 };
 
 type RecordingTimelineProps = {
@@ -184,93 +173,80 @@ export type RecordingTimelineHandle = {
 };
 
 const RecordingTimeline = forwardRef<RecordingTimelineHandle, RecordingTimelineProps>(({ recordings }, ref) => {
-  const [currentHourRef, setCurrentHourRef] = useState<HTMLDivElement | null>(null);
-  const [currentTime, setCurrentTime] = useState(() => Date.now());
   const containerRef = useRef<HTMLDivElement>(null);
+  const hourRefsMap = useRef<Map<number, HTMLDivElement>>(new Map());
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
   const timelineModel = useMemo(() => createTimelineModel(recordings), [recordings]);
 
   const currentMark = useMemo(() => {
-    if (!timelineModel) {
-      return null;
-    }
-
+    if (!timelineModel) return null;
     return timelineModel.hourMarks.findIndex((mark) => currentTime >= mark.from && currentTime < mark.to) ?? null;
   }, [timelineModel, currentTime]);
 
-  // Calculate the position of the current time indicator line
   const currentTimePosition = useMemo(() => {
-    if (!timelineModel || !currentTime) {
-      return null;
-    }
-
-    // Get the timeline start (minStartMin is in milliseconds and is the actual timeline start)
+    if (!timelineModel || !currentTime) return null;
     const offsetMs = currentTime - timelineModel.minStartMin;
     const offsetMinutes = offsetMs / MS_PER_MINUTE;
-
-    // Calculate which hour column and the minutes within that hour
-    const hourIndex = Math.floor(offsetMinutes / 60);
-    const minutesInHour = offsetMinutes % 60;
-
     return {
-      hourIndex,
-      minutesInHour,
+      hourIndex: Math.floor(offsetMinutes / 60),
+      minutesInHour: offsetMinutes % 60,
     };
   }, [timelineModel, currentTime]);
 
-  // Expose scrollToCurrentTime method via ref
+  // Register hour ref callbacks
+  const registerHourRef = useCallback((index: number, el: HTMLDivElement | null) => {
+    if (el) {
+      hourRefsMap.current.set(index, el);
+    } else {
+      hourRefsMap.current.delete(index);
+    }
+  }, []);
+
+  // Auto-scroll to current hour when it changes
+  useEffect(() => {
+    if (currentMark !== null && currentMark !== -1) {
+      const hourElement = hourRefsMap.current.get(currentMark);
+      hourElement?.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+    }
+  }, [currentMark]);
+
+  // Expose imperative methods
   useImperativeHandle(ref, () => ({
     scrollToCurrentTime: () => {
-      if (containerRef.current && currentHourRef) {
-        currentHourRef.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+      if (currentMark !== null && currentMark !== -1) {
+        const hourElement = hourRefsMap.current.get(currentMark);
+        hourElement?.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
       }
     },
     scrollToNextRecording: () => {
-      if (!timelineModel || !containerRef.current) {
-        return;
-      }
-
+      if (!timelineModel || !containerRef.current) return;
       const now = Date.now();
-      const nextRecording = timelineModel.lanes
-        .flat()
-        .map((bar) => ({
-          ...bar,
-          startMs: new Date(bar.recording.startTime).getTime(),
-        }))
-        .filter((bar) => bar.startMs > now)
-        .sort((a, b) => a.startMs - b.startMs)[0];
 
-      if (nextRecording) {
-        const offsetMs = nextRecording.startMs - timelineModel.minStartMin;
-        const offsetMinutes = offsetMs / MS_PER_MINUTE;
-        const hourIndex = Math.floor(offsetMinutes / 60);
-        const targetHourMark = timelineModel.hourMarks[hourIndex];
-
-        if (targetHourMark) {
-          const targetElement = containerRef.current.querySelector(
-            `[data-hour-index="${hourIndex}"]`,
-          ) as HTMLDivElement;
-          if (targetElement) {
-            targetElement.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+      // Find next recording
+      let nextStartMs = Infinity;
+      for (const lane of timelineModel.lanes) {
+        for (const bar of lane) {
+          const startMs = new Date(bar.recording.startTime).getTime();
+          if (startMs > now && startMs < nextStartMs) {
+            nextStartMs = startMs;
           }
         }
+      }
+
+      if (nextStartMs !== Infinity) {
+        const offsetMs = nextStartMs - timelineModel.minStartMin;
+        const hourIndex = Math.floor(offsetMs / MS_PER_MINUTE / 60);
+        const hourElement = hourRefsMap.current.get(hourIndex);
+        hourElement?.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
       }
     },
   }));
 
-  // Update current time every minute to keep the current time indicator line accurate
+  // Update current time every minute
   useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentTime(Date.now());
-    }, 60_000); // Update every minute
-
+    const interval = setInterval(() => setCurrentTime(Date.now()), 60_000);
     return () => clearInterval(interval);
   }, []);
-
-  useEffect(() => {
-    if (currentHourRef) {
-      currentHourRef.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
-    }
-  }, [currentMark, currentHourRef]);
 
   if (!timelineModel) {
     return <Typography color="text.secondary">No recordings available to render timeline.</Typography>;
@@ -298,7 +274,7 @@ const RecordingTimeline = forwardRef<RecordingTimelineHandle, RecordingTimelineP
           position: "relative",
         }}>
         {/* Current time indicator line */}
-        {currentTimePosition !== null && (
+        {currentTimePosition && (
           <Box
             sx={{
               gridColumn: currentTimePosition.hourIndex + 1,
@@ -317,7 +293,6 @@ const RecordingTimeline = forwardRef<RecordingTimelineHandle, RecordingTimelineP
           sx={{
             position: "sticky",
             top: 0,
-
             display: "grid",
             gridAutoFlow: "column",
             gridArea: `1 / 1 / 2 / ${timelineModel.totalColumns}`,
@@ -355,11 +330,7 @@ const RecordingTimeline = forwardRef<RecordingTimelineHandle, RecordingTimelineP
             <Box
               key={`hour-${mark.index}`}
               data-hour-index={mark.index}
-              ref={(el) => {
-                if (i === currentMark) {
-                  setCurrentHourRef(el as HTMLDivElement);
-                }
-              }}
+              ref={(el) => registerHourRef(mark.index, el as HTMLDivElement | null)}
               sx={{
                 gridArea: `1 / ${mark.index + 1} / 2 / ${mark.index + 2}`,
                 bgcolor: currentMark === i ? "primary.dark" : "background.paper",
