@@ -73,6 +73,7 @@ export class RecordingManager {
 
   private initialStartTime?: string;
   private attemptPaths: string[] = [];
+  private recordingEndedAt?: string; // Tracks when the actual recording ended (FFmpeg process closed)
 
   private scheduledStartTimeout: NodeJS.Timeout | null = null;
   private startWaiterTimer: NodeJS.Timeout | null = null;
@@ -429,6 +430,9 @@ export class RecordingManager {
     });
 
     this.process!.on("close", (code, signal) => {
+      // Record when the actual recording ended
+      this.recordingEndedAt = new Date().toISOString();
+
       this.log(`FFmpeg process exited with code ${code} and signal ${signal || "none"}`);
       this.frameCount = 0;
       this.fps = 0;
@@ -515,6 +519,7 @@ export class RecordingManager {
     recording.errorMessage = errorMessage;
     recording.updatedAt = new Date().toISOString();
     recording.completedAt = new Date().toISOString();
+    recording.endedAt = this.recordingEndedAt;
 
     saveRecordings(recordings);
   }

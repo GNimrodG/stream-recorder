@@ -18,6 +18,7 @@ export interface Recording {
   createdAt: string;
   updatedAt: string;
   completedAt?: string; // ISO date string - when recording completed
+  endedAt?: string; // ISO date string - when the actual recording ended (stopped or completed)
   errorMessage?: string;
 }
 

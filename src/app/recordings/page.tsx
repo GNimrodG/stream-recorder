@@ -41,7 +41,7 @@ import RecordingDialog from "@/components/dialogs/RecordingDialog";
 import RecordingLogsDialog from "@/components/dialogs/RecordingLogsDialog";
 import StatusDisplay from "@/components/StatusDisplay";
 import RecordingPreviewDialog from "@/components/dialogs/RecordingPreviewDialog";
-import { formatDate, formatDuration } from "@/utils";
+import { formatDate, formatDuration, getActualDuration } from "@/utils";
 
 export default function RecordingsPage() {
   return (
@@ -373,6 +373,7 @@ function RecordingsPageContent() {
                 <TableCell sx={{ width: { xs: "auto", md: "10%" } }}>Start Time</TableCell>
                 <TableCell sx={{ width: { xs: "auto", md: "5%" } }}>Duration</TableCell>
                 <TableCell sx={{ width: { xs: "auto", md: "40%" } }}>Status</TableCell>
+                <TableCell sx={{ width: { xs: "auto", md: "15%" } }}>Ended At</TableCell>
                 <TableCell sx={{ width: { xs: "auto", md: "20%" }, minWidth: 0 }}>Output</TableCell>
                 <TableCell align="right">Actions</TableCell>
               </TableRow>
@@ -380,13 +381,13 @@ function RecordingsPageContent() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={7} align="center">
+                  <TableCell colSpan={8} align="center">
                     <CircularProgress />
                   </TableCell>
                 </TableRow>
               ) : filteredRecordings.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} align="center">
+                  <TableCell colSpan={8} align="center">
                     No recordings found.
                   </TableCell>
                 </TableRow>
@@ -420,12 +421,29 @@ function RecordingsPageContent() {
                     {/* Start Time */}
                     <TableCell>{formatDate(recording.startTime)}</TableCell>
                     {/* Duration */}
-                    <TableCell>{formatDuration(recording.duration)}</TableCell>
+                    <TableCell>
+                      <Tooltip
+                        title={`${formatDuration(recording.duration)} scheduled, ${formatDuration(getActualDuration(recording))} actual`}>
+                        <span>{formatDuration(getActualDuration(recording))}</span>
+                      </Tooltip>
+                    </TableCell>
                     {/* Status */}
                     <TableCell>
                       <Stack direction="row" alignItems="center">
                         <StatusDisplay recording={recording} />
                       </Stack>
+                    </TableCell>
+                    {/* Ended At */}
+                    <TableCell>
+                      {recording.endedAt ? (
+                        <Tooltip title={recording.endedAt}>
+                          <Typography variant="caption">{formatDate(recording.endedAt)}</Typography>
+                        </Tooltip>
+                      ) : (
+                        <Typography variant="caption" color="text.secondary">
+                          -
+                        </Typography>
+                      )}
                     </TableCell>
                     {/* Output Path */}
                     <TableCell>
@@ -521,7 +539,11 @@ function RecordingsPageContent() {
                         {recording.status === "completed" && recording.outputPath && (
                           <>
                             <Tooltip title="Watch">
-                              <IconButton color="success" size="small" component="a" href="/viewer">
+                              <IconButton
+                                color="success"
+                                size="small"
+                                component="a"
+                                href={`/viewer?recordingId=${recording.id}`}>
                                 <PlayCircleIcon />
                               </IconButton>
                             </Tooltip>

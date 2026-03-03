@@ -1,13 +1,17 @@
 import net from "node:net";
 
-export type StreamStatus = "live" | "not_found" | "invalid" | "timeout" | "error";
+export type StreamStatus = "live" | "not_found" | "invalid" | "timeout" | "resp_timeout" | "error";
 
 // Host-level queues to ensure only one parallel request per hostname.
 const hostQueues = new Map<string, { running: boolean; queue: Array<() => void> }>();
 
 // Single-request behavior: each _started_ checkStreamStatus creates its own socket, sends DESCRIBE and closes.
 // However, only one request per host will be active at a time; additional requests are queued.
-export function checkStreamStatus(url: string, timeout = 1000): Promise<StreamStatus> {
+export function checkStreamStatus(
+  url: string,
+  connectionTimeout = 1000,
+  responseTimeout = 1000,
+): Promise<StreamStatus> {
   const parsed = new URL(url);
   const hostname = parsed.hostname;
   const port = +(parsed.port || "") || 554; // Default RTSP port
@@ -16,6 +20,8 @@ export function checkStreamStatus(url: string, timeout = 1000): Promise<StreamSt
   return new Promise<StreamStatus>((resolve) => {
     // The actual work, executed when this request reaches the front of the host queue.
     const start = () => {
+      const startTime = Date.now();
+      let connectTime = 0;
       const socket = net.createConnection(port, hostname);
       let buffer = "";
       let settled = false;
@@ -27,6 +33,10 @@ export function checkStreamStatus(url: string, timeout = 1000): Promise<StreamSt
           socket.destroy();
         } catch {}
         resolve(status);
+
+        console.log(
+          `Checked ${url} - status: ${status}, connectTime: ${connectTime}ms, totalTime: ${Date.now() - startTime}ms`,
+        );
 
         // Trigger next queued request for this host
         const entry = hostQueues.get(hostKey);
@@ -45,12 +55,11 @@ export function checkStreamStatus(url: string, timeout = 1000): Promise<StreamSt
         }
       };
 
-      const timeoutTimer = setTimeout(() => {
-        finalize("timeout");
-      }, timeout);
+      let timeoutTimer: NodeJS.Timeout | null = null;
 
       socket.setKeepAlive(true, 60000);
       socket.setNoDelay(true);
+      socket.setTimeout(connectionTimeout);
 
       socket.on("data", (data: Buffer) => {
         buffer += data.toString();
@@ -93,7 +102,7 @@ export function checkStreamStatus(url: string, timeout = 1000): Promise<StreamSt
 
           // Only accept RTSP responses
           if (!statusLine.startsWith("RTSP/1.0")) {
-            clearTimeout(timeoutTimer);
+            if (timeoutTimer) clearTimeout(timeoutTimer);
             finalize("invalid");
             return;
           }
@@ -101,12 +110,12 @@ export function checkStreamStatus(url: string, timeout = 1000): Promise<StreamSt
           const parts = statusLine.split(" ");
           const statusCode = parseInt(parts[1], 10);
           if (isNaN(statusCode)) {
-            clearTimeout(timeoutTimer);
+            if (timeoutTimer) clearTimeout(timeoutTimer);
             finalize("invalid");
             return;
           }
 
-          clearTimeout(timeoutTimer);
+          if (timeoutTimer) clearTimeout(timeoutTimer);
 
           if (statusCode >= 200 && statusCode < 300) {
             finalize("live");
@@ -119,23 +128,32 @@ export function checkStreamStatus(url: string, timeout = 1000): Promise<StreamSt
       });
 
       socket.on("error", () => {
-        clearTimeout(timeoutTimer);
+        if (timeoutTimer) clearTimeout(timeoutTimer);
         finalize("error");
       });
 
       socket.on("close", () => {
         // If socket closed before we settled, treat as error unless already timed out/settled
         if (!settled) {
-          clearTimeout(timeoutTimer);
+          if (timeoutTimer) clearTimeout(timeoutTimer);
           finalize("error");
         }
       });
 
       socket.on("end", () => {
         if (!settled) {
-          clearTimeout(timeoutTimer);
+          if (timeoutTimer) clearTimeout(timeoutTimer);
           finalize("error");
         }
+      });
+
+      socket.on("timeout", () => {
+        if (timeoutTimer) clearTimeout(timeoutTimer);
+        finalize("timeout");
+      });
+
+      socket.on("connect", () => {
+        connectTime = Date.now() - startTime;
       });
 
       // Send DESCRIBE once connected (write will queue before connect)
@@ -143,8 +161,10 @@ export function checkStreamStatus(url: string, timeout = 1000): Promise<StreamSt
       const describeRequest = `DESCRIBE ${url} RTSP/1.0\r\nCSeq: ${cseq}\r\n\r\n`;
       try {
         socket.write(describeRequest);
+        timeoutTimer = setTimeout(() => {
+          finalize("resp_timeout");
+        }, responseTimeout);
       } catch {
-        clearTimeout(timeoutTimer);
         finalize("error");
       }
     };

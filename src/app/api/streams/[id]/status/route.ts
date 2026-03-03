@@ -15,7 +15,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     });
   }
 
-  const status = await checkStreamStatus(stream.rtspUrl, 100);
+  const status = await checkStreamStatus(stream.rtspUrl, 500, 500);
 
   return new Response(
     JSON.stringify({ id: stream.id, status, lastChecked: new Date().toISOString() } satisfies StreamStatusResult),

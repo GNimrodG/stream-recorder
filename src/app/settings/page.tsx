@@ -421,7 +421,7 @@ export default function SettingsPage() {
                     helperText="Set to -1 for infinite attempts, 0 for no reconnection"
                     slotProps={{
                       input: {
-                        endAdornment: <InputAdornment position="end">seconds</InputAdornment>,
+                        endAdornment: <InputAdornment position="end">attemps</InputAdornment>,
                       },
                     }}
                   />

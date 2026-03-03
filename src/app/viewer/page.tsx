@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Alert,
   Box,
@@ -42,6 +43,9 @@ import { formatDate, formatDuration } from "@/utils";
 import RecordingPreviewDialog from "@/components/dialogs/RecordingPreviewDialog";
 
 export default function ViewerPage() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { recordings, loading, fetchRecordings } = useRecordings();
   const [selectedRecording, setSelectedRecording] = useState<RecordingWithStatus | null>(null);
   const [videoDialogOpen, setVideoDialogOpen] = useState(false);
@@ -67,13 +71,28 @@ export default function ViewerPage() {
   const [isLoadingVideo, setIsLoadingVideo] = useState(true);
   const [isVideoError, setIsVideoError] = useState(false);
 
-  const handleWatchVideo = (recording: RecordingWithStatus) => {
+  const handleWatchVideo = useCallback((recording: RecordingWithStatus) => {
     setIsLoadingVideo(true);
     setSelectedRecording(recording);
     setVideoDialogOpen(true);
     setIsPlaying(false);
     setCurrentTime(0);
-  };
+  }, []);
+
+  // Handle recordingId from search params
+  useEffect(() => {
+    const recordingId = searchParams.get("recordingId");
+    if (recordingId && recordings.length > 0 && !videoDialogOpen) {
+      const recording = recordings.find((r) => r.id === recordingId);
+      if (recording && recording.outputPath) {
+        // Use a microtask to defer state updates to avoid synchronous setState in effect
+        queueMicrotask(() => {
+          handleWatchVideo(recording);
+          router.replace(pathname, { scroll: false });
+        });
+      }
+    }
+  }, [searchParams, recordings, videoDialogOpen, handleWatchVideo, router, pathname]);
 
   const handleWatchLive = (recording: RecordingWithStatus) => {
     setSelectedRecording(recording);

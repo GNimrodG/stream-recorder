@@ -10,8 +10,24 @@ export default function StreamStatusChip({ status }: ChipStatusChipProps) {
   return (
     <Tooltip title={`${status.status.toUpperCase()} | Last checked: ${formatDate(status.lastChecked)}`}>
       <Chip
-        label={status.status === "live" ? "LIVE" : status.status === "error" ? "Error" : "Offline"}
-        color={status.status === "live" ? "success" : status.status === "error" ? "error" : "default"}
+        label={
+          status.status === "live"
+            ? "LIVE"
+            : status.status === "error"
+              ? "Error"
+              : status.status === "resp_timeout"
+                ? "Offline"
+                : "Server Unavailable"
+        }
+        color={
+          status.status === "live"
+            ? "success"
+            : status.status === "error"
+              ? "error"
+              : status.status === "resp_timeout"
+                ? "default"
+                : "warning"
+        }
         size="small"
       />
     </Tooltip>
