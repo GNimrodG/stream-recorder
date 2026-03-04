@@ -2,11 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getRecordingById } from "@/lib/recordings";
 import fs from "fs";
 import path from "path";
+import { Readable } from "stream";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const recording = getRecordingById(id);
 
@@ -15,33 +13,21 @@ export async function GET(
   }
 
   if (!recording.outputPath) {
-    return NextResponse.json(
-      { error: "Recording has no output file" },
-      { status: 404 },
-    );
+    return NextResponse.json({ error: "Recording has no output file" }, { status: 404 });
   }
 
   if (!fs.existsSync(recording.outputPath)) {
-    return NextResponse.json(
-      { error: "Output file not found" },
-      { status: 404 },
-    );
+    return NextResponse.json({ error: "Output file not found" }, { status: 404 });
   }
 
   const stat = fs.statSync(recording.outputPath);
   const fileName = path.basename(recording.outputPath);
 
-  // Stream the file
+  // Stream the file directly without buffering
   const fileStream = fs.createReadStream(recording.outputPath);
-  const chunks: Buffer[] = [];
+  const webStream: ReadableStream<Uint8Array> = Readable.toWeb(fileStream) as ReadableStream<Uint8Array>;
 
-  for await (const chunk of fileStream) {
-    chunks.push(chunk as Buffer);
-  }
-
-  const buffer = Buffer.concat(chunks);
-
-  return new NextResponse(buffer, {
+  return new NextResponse(webStream, {
     headers: {
       "Content-Type": "video/mp4",
       "Content-Disposition": `attachment; filename="${fileName}"`,

@@ -2,11 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getRecordingById } from "@/lib/recordings";
 import fs from "fs";
 import path from "path";
+import { Readable } from "stream";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const recording = getRecordingById(id);
 
@@ -15,17 +13,11 @@ export async function GET(
   }
 
   if (!recording.outputPath) {
-    return NextResponse.json(
-      { error: "Recording has no output file" },
-      { status: 404 },
-    );
+    return NextResponse.json({ error: "Recording has no output file" }, { status: 404 });
   }
 
   if (!fs.existsSync(recording.outputPath)) {
-    return NextResponse.json(
-      { error: "Output file not found" },
-      { status: 404 },
-    );
+    return NextResponse.json({ error: "Output file not found" }, { status: 404 });
   }
 
   const stat = fs.statSync(recording.outputPath);
@@ -54,15 +46,9 @@ export async function GET(
       start,
       end,
     });
-    const chunks: Buffer[] = [];
+    const webStream: ReadableStream<Uint8Array> = Readable.toWeb(fileStream) as ReadableStream<Uint8Array>;
 
-    for await (const chunk of fileStream) {
-      chunks.push(chunk as Buffer);
-    }
-
-    const buffer = Buffer.concat(chunks);
-
-    return new NextResponse(buffer, {
+    return new NextResponse(webStream, {
       status: 206,
       headers: {
         "Content-Range": `bytes ${start}-${end}/${fileSize}`,
@@ -73,18 +59,12 @@ export async function GET(
     });
   }
 
-  // No range requested - return full file info for initial request
-  // For large files, we'll just return headers to let browser make range requests
+  // No range requested - return stream directly
+  // This allows proper streaming for large files without buffering
   const fileStream = fs.createReadStream(recording.outputPath);
-  const chunks: Buffer[] = [];
+  const webStream: ReadableStream<Uint8Array> = Readable.toWeb(fileStream) as ReadableStream<Uint8Array>;
 
-  for await (const chunk of fileStream) {
-    chunks.push(chunk as Buffer);
-  }
-
-  const buffer = Buffer.concat(chunks);
-
-  return new NextResponse(buffer, {
+  return new NextResponse(webStream, {
     headers: {
       "Content-Type": contentType,
       "Content-Length": fileSize.toString(),
