@@ -42,11 +42,7 @@ export function getStreamById(id: string): SavedStream | undefined {
   return streams.find((s) => s.id === id);
 }
 
-export function createStream(data: {
-  name: string;
-  rtspUrl: string;
-  description?: string;
-}): SavedStream {
+export function createStream(data: { name: string; rtspUrl: string; description?: string }): SavedStream {
   const streams = loadStreams();
   const now = new Date().toISOString();
 
@@ -65,10 +61,7 @@ export function createStream(data: {
   return stream;
 }
 
-export function updateStream(
-  id: string,
-  data: Partial<SavedStream>,
-): SavedStream | null {
+export function updateStream(id: string, data: Partial<SavedStream>): SavedStream | null {
   const streams = loadStreams();
   const index = streams.findIndex((s) => s.id === id);
 

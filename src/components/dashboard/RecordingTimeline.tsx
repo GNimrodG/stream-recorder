@@ -2,6 +2,7 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRe
 import { Box, Typography } from "@mui/material";
 import { RecordingWithStatus } from "@/types/recording";
 import { formatDate, formatDuration } from "@/utils";
+import { getStatusColor } from "@/theme";
 
 const TIMELINE_MINUTE_WIDTH_REM = 0.15;
 const MS_PER_MINUTE = 60_000;
@@ -9,14 +10,6 @@ const MS_PER_HOUR = 60 * MS_PER_MINUTE;
 const MS_PER_DAY = 24 * MS_PER_HOUR;
 
 const ACTIVE_STATUSES = new Set(["starting", "recording", "retrying"]);
-const STATUS_COLORS: Record<string, string> = {
-  completed: "#2e7d32",
-  recording: "#d32f2f",
-  starting: "#d32f2f",
-  retrying: "#d32f2f",
-  failed: "#f57c00",
-  cancelled: "#6b7280",
-};
 
 type TimelinePoint = {
   recording: RecordingWithStatus;
@@ -32,8 +25,6 @@ type TimelineLaneBar = {
   startDiff: number;
   endDiff: number;
 };
-
-const getStatusColor = (status: string): string => STATUS_COLORS[status] ?? "#0288d1";
 
 const getTimelineEndMs = (recording: RecordingWithStatus, nowMs: number): number => {
   const startMs = new Date(recording.startTime).getTime();
@@ -175,16 +166,24 @@ export type RecordingTimelineHandle = {
 const RecordingTimeline = forwardRef<RecordingTimelineHandle, RecordingTimelineProps>(({ recordings }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const hourRefsMap = useRef<Map<number, HTMLDivElement>>(new Map());
-  const [currentTime, setCurrentTime] = useState(() => Date.now());
+  const [currentTime, setCurrentTime] = useState<number | null>(null);
+  const [isMounted, setIsMounted] = useState(false);
   const timelineModel = useMemo(() => createTimelineModel(recordings), [recordings]);
 
+  // Prevent hydration mismatch by only rendering time-dependent UI after mount
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setIsMounted(true);
+    setCurrentTime(() => Date.now());
+  }, []);
+
   const currentMark = useMemo(() => {
-    if (!timelineModel) return null;
+    if (!timelineModel || currentTime === null) return null;
     return timelineModel.hourMarks.findIndex((mark) => currentTime >= mark.from && currentTime < mark.to) ?? null;
   }, [timelineModel, currentTime]);
 
   const currentTimePosition = useMemo(() => {
-    if (!timelineModel || !currentTime) return null;
+    if (!timelineModel || currentTime === null) return null;
     const offsetMs = currentTime - timelineModel.minStartMin;
     const offsetMinutes = offsetMs / MS_PER_MINUTE;
     return {
@@ -244,9 +243,10 @@ const RecordingTimeline = forwardRef<RecordingTimelineHandle, RecordingTimelineP
 
   // Update current time every minute
   useEffect(() => {
+    if (!isMounted) return;
     const interval = setInterval(() => setCurrentTime(Date.now()), 60_000);
     return () => clearInterval(interval);
-  }, []);
+  }, [isMounted]);
 
   if (!timelineModel) {
     return <Typography color="text.secondary">No recordings available to render timeline.</Typography>;
@@ -257,6 +257,7 @@ const RecordingTimeline = forwardRef<RecordingTimelineHandle, RecordingTimelineP
       ref={containerRef}
       sx={{
         "--one-minute-width": `${TIMELINE_MINUTE_WIDTH_REM}rem`,
+        "--gap-width": "3px",
         overflow: "auto",
         maxWidth: "100%",
         borderRadius: 1,
@@ -268,13 +269,13 @@ const RecordingTimeline = forwardRef<RecordingTimelineHandle, RecordingTimelineP
           width: "max-content",
           minWidth: "100%",
           gridAutoRows: "max-content",
-          gap: "0px 1px",
+          gap: "0px var(--gap-width)",
           gridTemplateRows: "auto auto 1fr",
           gridAutoColumns: "calc(var(--one-minute-width) * 60)",
           position: "relative",
         }}>
         {/* Current time indicator line */}
-        {currentTimePosition && (
+        {isMounted && currentTimePosition && (
           <Box
             sx={{
               gridColumn: currentTimePosition.hourIndex + 1,
@@ -311,7 +312,16 @@ const RecordingTimeline = forwardRef<RecordingTimelineHandle, RecordingTimelineP
                 justifyContent: "center",
                 px: 0.5,
               }}>
-              <Typography variant="button">{mark.label}</Typography>
+              <Typography
+                variant="button"
+                sx={{
+                  position: "sticky",
+                  left: 0,
+                  right: 0,
+                  paddingX: 1,
+                }}>
+                {mark.label}
+              </Typography>
             </Box>
           ))}
         </Box>
@@ -333,7 +343,7 @@ const RecordingTimeline = forwardRef<RecordingTimelineHandle, RecordingTimelineP
               ref={(el) => registerHourRef(mark.index, el as HTMLDivElement | null)}
               sx={{
                 gridArea: `1 / ${mark.index + 1} / 2 / ${mark.index + 2}`,
-                bgcolor: currentMark === i ? "primary.dark" : "background.paper",
+                bgcolor: currentMark === i ? "primary.main" : "background.paper",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -356,8 +366,8 @@ const RecordingTimeline = forwardRef<RecordingTimelineHandle, RecordingTimelineP
               key={`bg-col-${colIndex}`}
               sx={{
                 marginTop: (theme) => theme.spacing(-2),
-                width: "1px",
-                marginLeft: `-1px`,
+                width: "var(--gap-width)",
+                marginLeft: "calc(var(--gap-width) * -1)",
                 backgroundColor: "divider",
               }}
             />
@@ -392,9 +402,9 @@ const RecordingTimeline = forwardRef<RecordingTimelineHandle, RecordingTimelineP
                 }}
                 title={`${item.recording.name} | ${formatDate(item.recording.startTime)} | ${formatDuration(item.actualDuration)}`}>
                 <Typography
-                  variant="caption"
+                  variant="subtitle2"
                   sx={{
-                    color: "common.white",
+                    color: (theme) => theme.palette.getContrastText(getStatusColor(item.recording.status)),
                     lineHeight: 1,
                     textOverflow: "ellipsis",
                     overflow: "hidden",

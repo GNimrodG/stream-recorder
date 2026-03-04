@@ -51,3 +51,12 @@ export type RecordingStats = {
 } & {
   total: number;
 };
+
+export type RecordingFilterStatus = RecordingStatus | "all";
+
+export interface RecordingPaginationMeta {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}

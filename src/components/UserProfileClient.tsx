@@ -1,14 +1,20 @@
 "use client";
 
-import { signOut, useSession } from "next-auth/react";
-import { Avatar, Box, CircularProgress, Divider, ListItemIcon, Menu, MenuItem, Typography } from "@mui/material";
+import { signOut } from "next-auth/react";
+import { Avatar, Box, Divider, ListItemIcon, Menu, MenuItem, Typography } from "@mui/material";
 import LogoutIcon from "@mui/icons-material/Logout";
 import PersonIcon from "@mui/icons-material/Person";
-import { useState } from "react";
+import BugReportIcon from "@mui/icons-material/BugReport";
+import { useState, useTransition } from "react";
+import type { Session } from "next-auth";
 
-export default function UserProfile() {
-  const { data: session, status } = useSession();
+type Props = {
+  session: Session | null;
+};
+
+export default function UserProfileClient({ session }: Props) {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [isPending, startTransition] = useTransition();
   const open = Boolean(anchorEl);
 
   const handleClick = (event: React.MouseEvent<HTMLElement>) => {
@@ -21,19 +27,12 @@ export default function UserProfile() {
 
   const handleSignOut = () => {
     handleClose();
-    signOut({ callbackUrl: "/login" }).then();
+    startTransition(() => {
+      signOut({ callbackUrl: "/login" });
+    });
   };
 
-  if (status === "loading") {
-    return (
-      <Box sx={{ display: "flex", justifyContent: "center", p: 2 }}>
-        <CircularProgress size={24} />
-      </Box>
-    );
-  }
-
   if (!session?.user) {
-    console.warn("[UserProfile] No session user found");
     return <Box sx={{ p: 2 }}>Not signed in</Box>;
   }
 
@@ -109,11 +108,18 @@ export default function UserProfile() {
           </Box>
         </MenuItem>
         <Divider />
-        <MenuItem onClick={handleSignOut}>
+        <MenuItem component="a" href="/auth-debug" onClick={handleClose}>
+          <ListItemIcon>
+            <BugReportIcon fontSize="small" />
+          </ListItemIcon>
+          Auth Debug
+        </MenuItem>
+        <Divider />
+        <MenuItem onClick={handleSignOut} disabled={isPending}>
           <ListItemIcon>
             <LogoutIcon fontSize="small" />
           </ListItemIcon>
-          Sign out
+          {isPending ? "Signing out..." : "Sign out"}
         </MenuItem>
       </Menu>
     </Box>

@@ -1,9 +1,10 @@
 import { STATUS_CONFIG } from "@/lib/status-config";
-import { Chip, Stack, Tooltip, Typography } from "@mui/material";
+import { Stack, Tooltip, Typography } from "@mui/material";
 import type { FC } from "react";
 import { RecordingWithStatus } from "@/types/recording";
 import ErrorIcon from "@mui/icons-material/Announcement";
 import WarningIcon from "@mui/icons-material/Warning";
+import CustomChip from "@/components/CustomChip";
 
 interface StatusDisplayProps {
   recording: RecordingWithStatus;
@@ -14,10 +15,10 @@ const StatusDisplay: FC<StatusDisplayProps> = ({ recording }) => {
 
   return (
     <Stack direction="row" alignItems="center" spacing={1}>
-      <Chip
+      <CustomChip
         icon={config?.icon}
         label={config?.label || recording.status || "Unknown"}
-        color={config?.color}
+        color={config?.color || "default"}
         size="small"
       />
 

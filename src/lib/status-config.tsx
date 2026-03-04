@@ -3,40 +3,41 @@ import FiberManualRecordIcon from "@mui/icons-material/FiberManualRecord";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ErrorIcon from "@mui/icons-material/Error";
 import CancelIcon from "@mui/icons-material/Cancel";
+import { STATUS_COLORS } from "@/theme";
 
 export const STATUS_CONFIG = {
   scheduled: {
-    color: "info" as const,
+    color: STATUS_COLORS.scheduled,
     icon: <ScheduleIcon fontSize="small" />,
     label: "Scheduled",
   },
   starting: {
-    color: "secondary" as const,
+    color: STATUS_COLORS.starting,
     icon: <ScheduleIcon fontSize="small" />,
     label: "Starting",
   },
   recording: {
-    color: "error" as const,
+    color: STATUS_COLORS.recording,
     icon: <FiberManualRecordIcon fontSize="small" />,
     label: "Recording",
   },
   completed: {
-    color: "success" as const,
+    color: STATUS_COLORS.completed,
     icon: <CheckCircleIcon fontSize="small" />,
     label: "Completed",
   },
   failed: {
-    color: "error" as const,
+    color: STATUS_COLORS.failed,
     icon: <ErrorIcon fontSize="small" />,
     label: "Failed",
   },
   cancelled: {
-    color: "warning" as const,
+    color: STATUS_COLORS.cancelled,
     icon: <CancelIcon fontSize="small" />,
     label: "Cancelled",
   },
   retrying: {
-    color: "warning" as const,
+    color: STATUS_COLORS.retrying,
     icon: <ScheduleIcon fontSize="small" />,
     label: "Retrying",
   },

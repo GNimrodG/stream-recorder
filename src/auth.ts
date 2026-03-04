@@ -1,4 +1,5 @@
 import type { NextAuthOptions } from "next-auth";
+import { getServerSession } from "next-auth/next";
 
 // Check if auth is disabled via environment variable
 export const isAuthDisabled =
@@ -8,9 +9,7 @@ export const isAuthDisabled =
   !process.env.AUTH_AUTHENTIK_CLIENT_SECRET;
 
 if (isAuthDisabled) {
-  console.log(
-    "Authentication is disabled. All routes are accessible without login.",
-  );
+  console.log("Authentication is disabled. All routes are accessible without login.");
 
   if (process.env.AUTH_DISABLED !== "true") {
     console.warn(
@@ -77,10 +76,7 @@ export const authOptions: NextAuthOptions = {
   useSecureCookies: process.env.NODE_ENV === "production",
   cookies: {
     sessionToken: {
-      name:
-        process.env.NODE_ENV === "production"
-          ? "__Secure-next-auth.session-token"
-          : "next-auth.session-token",
+      name: process.env.NODE_ENV === "production" ? "__Secure-next-auth.session-token" : "next-auth.session-token",
       options: {
         httpOnly: true,
         sameSite: "lax",
@@ -91,3 +87,14 @@ export const authOptions: NextAuthOptions = {
   },
   debug: process.env.NODE_ENV === "development",
 };
+
+/**
+ * Server-side helper to get the current session
+ * Use this in Server Components, API Routes, and Server Actions
+ */
+export async function auth() {
+  if (isAuthDisabled) {
+    return null;
+  }
+  return getServerSession(authOptions);
+}

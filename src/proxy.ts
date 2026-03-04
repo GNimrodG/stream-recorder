@@ -7,9 +7,20 @@ import { isAuthDisabled } from "@/auth";
 const publicRoutes = ["/login", "/api/auth", "/auth-debug"];
 
 export async function proxy(request: NextRequest) {
+  const next = () => {
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set("x-pathname", request.nextUrl.pathname);
+
+    return NextResponse.next({
+      request: {
+        headers: requestHeaders,
+      },
+    });
+  };
+
   // If auth is disabled, allow all requests
   if (isAuthDisabled) {
-    return NextResponse.next();
+    return next();
   }
 
   const { pathname } = request.nextUrl;
@@ -18,7 +29,7 @@ export async function proxy(request: NextRequest) {
 
   // Allow public routes
   if (isPublicRoute) {
-    return NextResponse.next();
+    return next();
   }
 
   // Check for session token
@@ -34,7 +45,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  return NextResponse.next();
+  return next();
 }
 
 export const config = {

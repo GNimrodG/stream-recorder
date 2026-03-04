@@ -1,25 +1,57 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createRecording, getAllRecordingsWithStats } from "@/lib/recordings";
-import { CreateRecordingDto } from "@/types/recording";
-import { initializeRecordings, startCleanupScheduler } from "@/lib/recordings";
-
-// Initialize recordings on first request
-let initialized = false;
+import {
+  createRecording,
+  ensureRecordingsInitialized,
+  getAllRecordingsWithStats,
+  getPaginatedRecordingsWithStats,
+} from "@/lib/recordings";
+import { CreateRecordingDto, RecordingFilterStatus } from "@/types/recording";
 
 export function ensureInitialized() {
-  if (!initialized) {
-    initializeRecordings();
-    startCleanupScheduler();
-    initialized = true;
-    console.log("Recordings initialized and cleanup scheduler started");
-  }
+  ensureRecordingsInitialized();
 }
 
-export async function GET() {
+function parsePositiveInt(value: string | null, defaultValue: number): number {
+  const parsed = Number.parseInt(value ?? "", 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : defaultValue;
+}
+
+function parseStatus(value: string | null): RecordingFilterStatus {
+  const validStatuses: RecordingFilterStatus[] = [
+    "all",
+    "scheduled",
+    "starting",
+    "recording",
+    "completed",
+    "failed",
+    "cancelled",
+    "retrying",
+  ];
+
+  if (value && validStatuses.includes(value as RecordingFilterStatus)) {
+    return value as RecordingFilterStatus;
+  }
+
+  return "all";
+}
+
+export async function GET(request: NextRequest) {
   ensureInitialized();
 
-  const recordings = getAllRecordingsWithStats();
-  return NextResponse.json(recordings);
+  const searchParams = request.nextUrl.searchParams;
+  const hasPaginatedQuery = searchParams.has("page") || searchParams.has("pageSize") || searchParams.has("status");
+
+  if (!hasPaginatedQuery) {
+    const recordings = getAllRecordingsWithStats();
+    return NextResponse.json(recordings);
+  }
+
+  const page = parsePositiveInt(searchParams.get("page"), 1);
+  const pageSize = parsePositiveInt(searchParams.get("pageSize"), 10);
+  const status = parseStatus(searchParams.get("status"));
+
+  const paginatedRecordings = getPaginatedRecordingsWithStats({ page, pageSize, status });
+  return NextResponse.json(paginatedRecordings);
 }
 
 export async function POST(request: NextRequest) {

@@ -1,4 +1,10 @@
-import { Recording, RecordingStats, RecordingWithStatus } from "@/types/recording";
+import {
+  Recording,
+  RecordingFilterStatus,
+  RecordingPaginationMeta,
+  RecordingStats,
+  RecordingWithStatus,
+} from "@/types/recording";
 import { randomUUID } from "crypto";
 import fs from "fs";
 import path from "path";
@@ -10,6 +16,7 @@ const RECORDINGS_OUTPUT_DIR = process.env.RECORDINGS_OUTPUT_DIR || "./recordings
 
 // Cleanup scheduler
 let cleanupInterval: NodeJS.Timeout | null = null;
+let initialized = false;
 
 /**
  * Start automatic cleanup scheduler (runs every 3 hours) to delete old recordings and enforce storage limits
@@ -112,6 +119,39 @@ export function getAllRecordingsWithStats(): RecordingWithStatus[] {
   const recordings = loadRecordings();
 
   return recordings.map((recording) => getRecordingStatus(recording));
+}
+
+export function getPaginatedRecordingsWithStats(options: {
+  page: number;
+  pageSize: number;
+  status?: RecordingFilterStatus;
+}): { data: RecordingWithStatus[]; pagination: RecordingPaginationMeta } {
+  const page = Math.max(1, options.page);
+  const pageSize = Math.max(1, options.pageSize);
+  const status = options.status ?? "all";
+
+  const sortedRecordings = getAllRecordingsWithStats().toSorted(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  );
+
+  const filteredRecordings =
+    status === "all" ? sortedRecordings : sortedRecordings.filter((recording) => recording.status === status);
+
+  const total = filteredRecordings.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const startIndex = (safePage - 1) * pageSize;
+  const data = filteredRecordings.slice(startIndex, startIndex + pageSize);
+
+  return {
+    data,
+    pagination: {
+      page: safePage,
+      pageSize,
+      total,
+      totalPages,
+    },
+  };
 }
 
 export function getRecordingById(id: string): Recording | undefined {
@@ -261,6 +301,17 @@ export function initializeRecordings(): void {
   console.log(
     `Initialized recordings. Total: ${recordings.length}, Scheduled: ${recordings.filter((r) => r.success === undefined).length}`,
   );
+}
+
+export function ensureRecordingsInitialized(): void {
+  if (initialized) {
+    return;
+  }
+
+  initializeRecordings();
+  startCleanupScheduler();
+  initialized = true;
+  console.log("Recordings initialized and cleanup scheduler started");
 }
 
 function createRecordingManager(recording: Recording): RecordingManager {
