@@ -29,6 +29,11 @@ type TimelineLaneBar = {
 const getTimelineEndMs = (recording: RecordingWithStatus, nowMs: number): number => {
   const startMs = new Date(recording.startTime).getTime();
   const plannedEndMs = startMs + Math.max(0, recording.duration) * 1000;
+
+  if (recording.status === "recording") {
+    return plannedEndMs;
+  }
+
   const finalEndMs = new Date(recording.endedAt ?? recording.completedAt ?? "").getTime();
 
   if (Number.isFinite(finalEndMs)) {
