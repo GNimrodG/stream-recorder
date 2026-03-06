@@ -20,6 +20,7 @@ type TimelinePoint = {
 type TimelineLaneBar = {
   recording: RecordingWithStatus;
   actualDuration: number;
+  endTime: string;
   startIndex: number;
   endIndex: number;
   startDiff: number;
@@ -30,7 +31,7 @@ const getTimelineEndMs = (recording: RecordingWithStatus, nowMs: number): number
   const startMs = new Date(recording.startTime).getTime();
   const plannedEndMs = startMs + Math.max(0, recording.duration) * 1000;
 
-  if (recording.status === "recording") {
+  if (recording.status === "recording" || recording.status === "starting" || recording.status === "retrying") {
     return plannedEndMs;
   }
 
@@ -134,7 +135,7 @@ const createTimelineModel = (recordings: RecordingWithStatus[]) => {
     const startIndex = Math.floor((point.startMin - minStartMin) / MS_PER_HOUR);
     const endIndex = Math.ceil((point.endMin - minStartMin) / MS_PER_HOUR);
     const startDiff = (point.startMin - minStartMin) % MS_PER_HOUR;
-    const endDiff = (point.endMin - minStartMin) % MS_PER_HOUR;
+    const endDiff = MS_PER_HOUR - Math.ceil((point.endMin - minStartMin) % MS_PER_HOUR);
 
     // Find first available lane
     let laneIndex = laneEndIndexes.findIndex((laneEndIndex) => laneEndIndex <= startIndex);
@@ -148,7 +149,8 @@ const createTimelineModel = (recordings: RecordingWithStatus[]) => {
 
     lanes[laneIndex].push({
       recording: point.recording,
-      actualDuration: (point.endMin - point.startMin) / MS_PER_MINUTE,
+      endTime: new Date(point.endMin).toISOString(),
+      actualDuration: (point.endMin - point.startMin) / 1000,
       startIndex,
       endIndex,
       startDiff,
@@ -405,7 +407,7 @@ const RecordingTimeline = forwardRef<RecordingTimelineHandle, RecordingTimelineP
                   marginLeft: `calc(var(--one-minute-width) * ${item.startDiff / MS_PER_MINUTE})`,
                   marginRight: `calc(var(--one-minute-width) * ${item.endDiff / MS_PER_MINUTE})`,
                 }}
-                title={`${item.recording.name} | ${formatDate(item.recording.startTime)} | ${formatDuration(item.actualDuration)}`}>
+                title={`${item.recording.name} | ${formatDate(item.recording.startTime)} - ${formatDate(item.endTime)} | ${formatDuration(item.actualDuration)}`}>
                 <Typography
                   variant="subtitle2"
                   sx={{

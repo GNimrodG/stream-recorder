@@ -152,7 +152,7 @@ export function buildFFmpegArgs(rtspUrl: string, outputPath: string, duration: n
 
   // Output format specific options
   if (settings.outputFormat === "mp4") {
-    args.push("-movflags", "+faststart");
+    args.push("-movflags", "+frag_keyframe+empty_moov");
   }
 
   // Overwrite output

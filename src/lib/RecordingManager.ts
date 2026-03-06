@@ -468,12 +468,16 @@ export class RecordingManager {
       this.finish(`Recording failed: ${err.message || err}`);
     });
 
-    this.abortController.signal.addEventListener("abort", () => {
-      if (this.process?.exitCode === null) {
-        this.log("Aborting recording process...");
-        this.process.kill("SIGINT");
-      }
-    });
+    this.abortController.signal.addEventListener(
+      "abort",
+      () => {
+        if (this.process?.exitCode === null) {
+          this.log("Aborting recording process...");
+          this.process.kill("SIGINT");
+        }
+      },
+      { once: true },
+    );
   }
 
   private finish(errorMessage?: string) {
@@ -494,7 +498,7 @@ export class RecordingManager {
         if (mergeRecordingParts(this.attemptPaths, this.FINAL_FILE_PATH)) {
           this.log(`Merged ${this.attemptPaths.length} recording attempts into final file: ${this.FINAL_FILE_PATH}`);
         } else {
-          this.log(`Merge completed but final file may be corrupted: ${this.FINAL_FILE_PATH}`);
+          this.log("Merge completed but final file may be corrupted");
           errorMessage =
             `Recording completed but final file may be corrupted: ${this.FINAL_FILE_PATH}` +
             (errorMessage ? ` | ${errorMessage}` : "");
@@ -515,7 +519,7 @@ export class RecordingManager {
     }
 
     recording.success = this.status !== "failed" && this.attemptPaths.length > 0;
-    recording.outputPath = recording.success ? this.FINAL_FILE_PATH : undefined;
+    recording.outputPath = fs.existsSync(this.FINAL_FILE_PATH) ? this.FINAL_FILE_PATH : undefined;
     recording.errorMessage = errorMessage;
     recording.updatedAt = new Date().toISOString();
     recording.completedAt = new Date().toISOString();

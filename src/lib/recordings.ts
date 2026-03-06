@@ -3,7 +3,7 @@ import {
   RecordingFilterStatus,
   RecordingPaginationMeta,
   RecordingStats,
-  RecordingWithStatus,
+  RecordingWithStatus
 } from "@/types/recording";
 import { randomUUID } from "crypto";
 import fs from "fs";
@@ -53,22 +53,36 @@ function ensureDirectories() {
 
 // Cache for recordings to minimize file I/O
 let recordingsCache: Recording[] | null = null;
+let cachedFileModifiedTime: number = 0;
 
 // Load recordings from file
 function loadRecordings(): Recording[] {
-  if (recordingsCache) {
-    return recordingsCache;
-  }
-
   ensureDirectories();
+
   if (!fs.existsSync(RECORDINGS_FILE)) {
+    recordingsCache = [];
+    cachedFileModifiedTime = 0;
     return [];
   }
+
   try {
+    // Check if file has been modified since last cache
+    const stats = fs.statSync(RECORDINGS_FILE);
+    const fileModifiedTime = stats.mtimeMs;
+
+    // Use cache if it exists and file hasn't been modified
+    if (recordingsCache && fileModifiedTime === cachedFileModifiedTime) {
+      return recordingsCache;
+    }
+
+    // File has been modified or no cache exists, read from disk
     const data = fs.readFileSync(RECORDINGS_FILE, "utf-8");
     recordingsCache = JSON.parse(data);
+    cachedFileModifiedTime = fileModifiedTime;
     return recordingsCache!;
   } catch {
+    recordingsCache = [];
+    cachedFileModifiedTime = 0;
     return [];
   }
 }
@@ -82,8 +96,17 @@ export function saveRecordings(recordings: Recording[], writeToDisk = true): voi
   recordingsCache = recordings;
 
   if (!writeToDisk) return;
+
   ensureDirectories();
   fs.writeFileSync(RECORDINGS_FILE, JSON.stringify(recordings, null, 2));
+
+  // Update cached file modified time after writing
+  try {
+    const stats = fs.statSync(RECORDINGS_FILE);
+    cachedFileModifiedTime = stats.mtimeMs;
+  } catch {
+    cachedFileModifiedTime = 0;
+  }
 }
 
 export function getAllRecordings(): Recording[] {
