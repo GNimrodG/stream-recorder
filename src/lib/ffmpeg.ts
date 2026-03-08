@@ -129,6 +129,25 @@ export function buildFFmpegArgs(rtspUrl: string, outputPath: string, duration: n
   // RTSP-specific options for better stability
   args.push("-rtsp_flags", "prefer_tcp");
 
+  // Network timeout settings (in microseconds) - 10 seconds
+  // This prevents FFmpeg from hanging indefinitely on connection issues
+  args.push("-timeout", "10000000");
+
+  // Set maximum time to wait for incoming packets (in microseconds) - 30 seconds
+  // This is the read timeout - if no data arrives for 30s, FFmpeg will error out
+  // Note: This should be longer than your stream's keyframe interval
+  args.push("-stimeout", "30000000");
+
+  // Buffer size settings for better handling of network jitter
+  // Larger buffers help handle temporary network issues without dropping the connection
+  args.push("-fflags", "+genpts+discardcorrupt");
+  args.push("-flags", "low_delay");
+
+  // Increase probe size and analyze duration to better handle stream initialization
+  // This helps FFmpeg fully understand the stream format before starting
+  args.push("-probesize", "50M");
+  args.push("-analyzeduration", "10M");
+
   // Input
   args.push("-i", rtspUrl);
 
@@ -146,6 +165,13 @@ export function buildFFmpegArgs(rtspUrl: string, outputPath: string, duration: n
   } else {
     args.push("-c:a", settings.audioCodec);
   }
+
+  // Use avoid_negative_ts to handle timestamp issues better
+  // This prevents issues with streams that have irregular timestamps
+  args.push("-avoid_negative_ts", "make_zero");
+
+  // Use async to fix timestamp issues (helps with DTS warnings)
+  args.push("-async", "1");
 
   // Duration
   args.push("-t", duration.toString());

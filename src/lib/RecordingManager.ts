@@ -310,6 +310,8 @@ export class RecordingManager {
   }
 
   private reconnectAttempts: number = 0;
+  private lastErrorMessage: string = "";
+  private recordedAnyFrames: boolean = false;
 
   private startWaiter() {
     if (this.startWaiterTimer) {
@@ -392,6 +394,10 @@ export class RecordingManager {
       `${sanitizedName}_${timestamp}_attempt${attempt}.${this.OUTPUT_FORMAT}`,
     );
 
+    // Reset frame tracking for this attempt
+    this.recordedAnyFrames = false;
+    this.lastErrorMessage = "";
+
     // Ensure output directory exists
     if (!fs.existsSync(this.OUTPUT_DIR)) {
       fs.mkdirSync(this.OUTPUT_DIR, { recursive: true });
@@ -414,6 +420,19 @@ export class RecordingManager {
 
       const line = data.toString();
 
+      // Check for error conditions
+      if (
+        line.includes("Connection timed out") ||
+        line.includes("Connection refused") ||
+        line.includes("I/O error") ||
+        line.includes("Server returned 4") ||
+        line.includes("Server returned 5") ||
+        line.includes("No route to host") ||
+        line.includes("Network is unreachable")
+      ) {
+        this.lastErrorMessage = line.trim();
+      }
+
       if (line.includes("frame=")) {
         const frameMatch = line.match(/frame=\s*(\d+)/);
         const fpsMatch = line.match(/fps=\s*([\d.]+)/);
@@ -421,7 +440,12 @@ export class RecordingManager {
         const bitrateMatch = line.match(/bitrate=\s*([\d.]+kbits\/s)/);
         const speedMatch = line.match(/speed=\s*([\d.]+)x/);
 
-        if (frameMatch) this.frameCount = parseInt(frameMatch[1], 10);
+        if (frameMatch) {
+          this.frameCount = parseInt(frameMatch[1], 10);
+          if (this.frameCount > 0) {
+            this.recordedAnyFrames = true;
+          }
+        }
         if (fpsMatch) this.fps = parseFloat(fpsMatch[1]);
         if (timeMatch) this.time = timeMatch[1];
         if (bitrateMatch) this.bitrate = bitrateMatch[1];
@@ -434,13 +458,45 @@ export class RecordingManager {
       this.recordingEndedAt = new Date().toISOString();
 
       this.log(`FFmpeg process exited with code ${code} and signal ${signal || "none"}`);
+
+      // Log error details if we captured any
+      if (this.lastErrorMessage) {
+        this.log(`Last error message: ${this.lastErrorMessage}`);
+      }
+
+      // Check if we recorded any frames
+      if (!this.recordedAnyFrames && code === 0) {
+        this.log(
+          "Warning: FFmpeg exited successfully but no frames were recorded. This may indicate a connection issue.",
+        );
+      }
+
       this.frameCount = 0;
       this.fps = 0;
       this.time = "";
       this.bitrate = "";
       this.speed = 0;
 
-      if (fs.existsSync(this.OUTPUT_DIR)) this.attemptPaths.push(outputPath);
+      if (fs.existsSync(outputPath)) {
+        const stats = fs.statSync(outputPath);
+        this.log(`Output file size: ${(stats.size / 1024 / 1024).toFixed(2)} MB`);
+
+        // Only add to attempt paths if file has meaningful content
+        if (stats.size > 1024) {
+          // More than 1KB
+          this.attemptPaths.push(outputPath);
+        } else {
+          this.log(`Output file is too small (${stats.size} bytes), not adding to attempt paths`);
+          // Delete the useless file
+          try {
+            fs.unlinkSync(outputPath);
+          } catch (err) {
+            this.log(`Failed to delete empty output file: ${err}`);
+          }
+        }
+      } else {
+        this.log(`Output file does not exist: ${outputPath}`);
+      }
 
       if (this.abortController.signal.aborted) {
         this.log("Recording was aborted, not checking for completion.");
@@ -452,7 +508,7 @@ export class RecordingManager {
       const remaining = this.getRemainingDuration();
 
       if (remaining > 0) {
-        this.log(`Recording stopped before completion, ${remaining} seconds remaining. Will retry...`);
+        this.log(`Recording stopped before completion, ${remaining.toFixed(1)} seconds remaining. Will retry...`);
         this.status = "retrying";
         this._start();
       } else {
