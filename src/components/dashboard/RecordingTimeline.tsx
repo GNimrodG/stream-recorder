@@ -9,7 +9,9 @@ const MS_PER_MINUTE = 60_000;
 const MS_PER_HOUR = 60 * MS_PER_MINUTE;
 const MS_PER_DAY = 24 * MS_PER_HOUR;
 
-const ACTIVE_STATUSES = new Set(["starting", "recording", "retrying"]);
+const NOT_FINISHED_STATES = new Set(["scheduled", "starting", "recording", "retrying"]);
+// Active states that should show the pulsing animation
+const ACTIVE_STATES = new Set(["starting", "recording", "retrying"]);
 
 type TimelinePoint = {
   recording: RecordingWithStatus;
@@ -27,11 +29,11 @@ type TimelineLaneBar = {
   endDiff: number;
 };
 
-const getTimelineEndMs = (recording: RecordingWithStatus, nowMs: number): number => {
+const getTimelineEndMs = (recording: RecordingWithStatus): number => {
   const startMs = new Date(recording.startTime).getTime();
   const plannedEndMs = startMs + Math.max(0, recording.duration) * 1000;
 
-  if (recording.status === "recording" || recording.status === "starting" || recording.status === "retrying") {
+  if (NOT_FINISHED_STATES.has(recording.status)) {
     return plannedEndMs;
   }
 
@@ -39,10 +41,6 @@ const getTimelineEndMs = (recording: RecordingWithStatus, nowMs: number): number
 
   if (Number.isFinite(finalEndMs)) {
     return Math.max(finalEndMs, startMs);
-  }
-
-  if (ACTIVE_STATUSES.has(recording.status)) {
-    return Math.max(nowMs, startMs);
   }
 
   return Math.max(plannedEndMs, startMs);
@@ -66,7 +64,6 @@ const formatTickLabel = (timestampMs: number): string => timeFormatter.format(ne
 const createTimelineModel = (recordings: RecordingWithStatus[]) => {
   if (!recordings.length) return null;
 
-  const nowMs = Date.now();
   const points: TimelinePoint[] = [];
 
   // Single pass to create points
@@ -76,7 +73,7 @@ const createTimelineModel = (recordings: RecordingWithStatus[]) => {
       points.push({
         recording,
         startMin: Math.floor(startMs / MS_PER_MINUTE) * MS_PER_MINUTE,
-        endMin: Math.ceil(getTimelineEndMs(recording, nowMs) / MS_PER_MINUTE) * MS_PER_MINUTE,
+        endMin: Math.ceil(getTimelineEndMs(recording) / MS_PER_MINUTE) * MS_PER_MINUTE,
       });
     }
   }
@@ -97,7 +94,8 @@ const createTimelineModel = (recordings: RecordingWithStatus[]) => {
   if (!Number.isFinite(minStartMin) || !Number.isFinite(maxEndMin)) return null;
 
   const totalMinutes = Math.ceil((maxEndMin - minStartMin) / MS_PER_MINUTE);
-  const totalColumns = Math.ceil(totalMinutes / 60);
+  // Add an extra column at the end to ensure there's space for recordings that end exactly at the max end time
+  const totalColumns = Math.ceil(totalMinutes / 60) + 2;
 
   // Build day marks
   const dayMarks: { fromIndex: number; toIndex: number; label: string }[] = [];
@@ -115,7 +113,8 @@ const createTimelineModel = (recordings: RecordingWithStatus[]) => {
   // Build hour marks
   const hourMarks: { index: number; label: string; from: number; to: number }[] = [];
   let currentHourMin = Math.ceil(minStartMin / MS_PER_HOUR) * MS_PER_HOUR;
-  while (currentHourMin < maxEndMin) {
+  // Include the final hour boundary so the label for the max end hour is rendered
+  while (currentHourMin <= maxEndMin) {
     const index = Math.floor((currentHourMin - minStartMin) / MS_PER_HOUR);
     hourMarks.push({
       index,
@@ -268,6 +267,12 @@ const RecordingTimeline = forwardRef<RecordingTimelineHandle, RecordingTimelineP
         overflow: "auto",
         maxWidth: "100%",
         borderRadius: 1,
+        // Define pulse keyframes once so children can reference the animation
+        "@keyframes recordingPulse": {
+          "0%": { opacity: 1 },
+          "50%": { opacity: 0.6 },
+          "100%": { opacity: 1 },
+        },
       }}>
       <Box
         sx={{
@@ -372,7 +377,7 @@ const RecordingTimeline = forwardRef<RecordingTimelineHandle, RecordingTimelineP
             <Box
               key={`bg-col-${colIndex}`}
               sx={{
-                marginTop: (theme) => theme.spacing(-2),
+                mt: (theme) => theme.spacing(-2),
                 width: "var(--gap-width)",
                 marginLeft: "calc(var(--gap-width) * -1)",
                 backgroundColor: "divider",
@@ -406,6 +411,10 @@ const RecordingTimeline = forwardRef<RecordingTimelineHandle, RecordingTimelineP
                   justifyContent: "center",
                   marginLeft: `calc(var(--one-minute-width) * ${item.startDiff / MS_PER_MINUTE})`,
                   marginRight: `calc(var(--one-minute-width) * ${item.endDiff / MS_PER_MINUTE})`,
+                  // Apply pulse animation only for active recording states
+                  ...(ACTIVE_STATES.has(item.recording.status)
+                    ? { animation: "recordingPulse 1.2s ease-in-out infinite" }
+                    : {}),
                 }}
                 title={`${item.recording.name} | ${formatDate(item.recording.startTime)} - ${formatDate(item.endTime)} | ${formatDuration(item.actualDuration)}`}>
                 <Typography

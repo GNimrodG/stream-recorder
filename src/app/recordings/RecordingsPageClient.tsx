@@ -404,7 +404,6 @@ export default function RecordingsPageClient({
   };
 
   const handleEditClick = (recording: RecordingWithStatus) => {
-    setSelectedRecording(recording);
     setFormData({
       name: recording.name,
       rtspUrl: recording.rtspUrl,
