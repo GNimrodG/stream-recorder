@@ -20,10 +20,7 @@ FROM nvidia/cuda:12.3.1-runtime-ubuntu22.04 AS runner
 
 WORKDIR /app
 
-# Install Node.js 24 and a static FFmpeg build with NVENC/CUDA support.
-# Ubuntu's default apt ffmpeg is compiled WITHOUT NVENC, so nvidia-smi shows no
-# GPU usage even when hwaccel is configured. We use a static build from
-# johnvansickle.com which includes all encoders (h264_nvenc, hevc_nvenc, etc.).
+# Install Node.js 24 and ffmpeg with NVIDIA hardware acceleration support
 RUN apt-get update && apt-get install -y \
     curl \
     ca-certificates \
@@ -33,15 +30,9 @@ RUN apt-get update && apt-get install -y \
     && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \
     && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_24.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list \
     && apt-get update \
-    && apt-get install -y nodejs \
+    && apt-get install -y nodejs ffmpeg \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
-
-# Install static FFmpeg build that includes NVENC/CUDA hardware acceleration support.
-# The static build from johnvansickle.com is compiled with --enable-nvenc and all GPU encoders.
-RUN curl -fsSL https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz \
-    | tar -xJ --strip-components=1 -C /usr/local/bin --wildcards '*/ffmpeg' '*/ffprobe' \
-    && chmod +x /usr/local/bin/ffmpeg /usr/local/bin/ffprobe
 
 # Create non-root user
 RUN groupadd --system --gid 1001 nodejs && \
