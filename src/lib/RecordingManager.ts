@@ -21,6 +21,12 @@ export class RecordingManager {
   private readonly LOG_FILE_PATH: string;
   private readonly FINAL_FILE_PATH: string;
 
+  private lastAttemptPath: string | null = null;
+
+  public get lastAttemptFilePath(): string | null {
+    return this.lastAttemptPath;
+  }
+
   private abortController: AbortController = new AbortController();
   private status: RecordingStatus = "scheduled";
   public get currentStatus(): RecordingStatus {
@@ -311,7 +317,6 @@ export class RecordingManager {
 
   private reconnectAttempts: number = 0;
   private lastErrorMessage: string = "";
-  private recordedAnyFrames: boolean = false;
 
   private startWaiter() {
     if (this.startWaiterTimer) {
@@ -394,8 +399,10 @@ export class RecordingManager {
       `${sanitizedName}_${timestamp}_attempt${attempt}.${this.OUTPUT_FORMAT}`,
     );
 
+    this.lastAttemptPath = outputPath;
+
     // Reset frame tracking for this attempt
-    this.recordedAnyFrames = false;
+    this.frameCount = 0;
     this.lastErrorMessage = "";
 
     // Ensure output directory exists
@@ -405,6 +412,8 @@ export class RecordingManager {
 
     const duration = this.getRemainingDuration();
     const ffmpegArgs = buildFFmpegArgs(this.url, outputPath, duration);
+
+    this.log(`Running FFMpeg with params: ${ffmpegArgs.join(" ")}`);
 
     this.log(`Recording to: ${outputPath} for duration: ${duration} seconds`);
 
@@ -440,12 +449,7 @@ export class RecordingManager {
         const bitrateMatch = line.match(/bitrate=\s*([\d.]+kbits\/s)/);
         const speedMatch = line.match(/speed=\s*([\d.]+)x/);
 
-        if (frameMatch) {
-          this.frameCount = parseInt(frameMatch[1], 10);
-          if (this.frameCount > 0) {
-            this.recordedAnyFrames = true;
-          }
-        }
+        if (frameMatch) this.frameCount = parseInt(frameMatch[1], 10);
         if (fpsMatch) this.fps = parseFloat(fpsMatch[1]);
         if (timeMatch) this.time = timeMatch[1];
         if (bitrateMatch) this.bitrate = bitrateMatch[1];
@@ -465,7 +469,7 @@ export class RecordingManager {
       }
 
       // Check if we recorded any frames
-      if (!this.recordedAnyFrames && code === 0) {
+      if (this.frameCount === 0 && code === 0) {
         this.log(
           "Warning: FFmpeg exited successfully but no frames were recorded. This may indicate a connection issue.",
         );

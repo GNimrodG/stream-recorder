@@ -5,21 +5,23 @@ services:
       dockerfile: Dockerfile
     container_name: stream-recorder
     restart: unless-stopped
+    # Required for GPU passthrough with docker compose (non-swarm mode)
+    runtime: nvidia
     ports:
       - "3000:3000"
     volumes:
       # Persist recordings data
-      - recordings_data:/app/recordings
+      - ./recordings:/app/recordings
       # Persist database
-      - db_data:/app/data
+      - ./data:/app/data
+      - ./logs:/app/logs
     environment:
       - NODE_ENV=production
       - RECORDINGS_DB_PATH=/app/data/recordings.json
       - RECORDINGS_OUTPUT_DIR=/app/recordings
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,video,utility
-    networks:
-      - stream-network
+      - AUTH_AUTHENTIK_CLIENT_SECRET=your_secret_key_here
     deploy:
       resources:
         reservations:
@@ -27,14 +29,4 @@ services:
             - driver: nvidia
               count: all
               capabilities: [ gpu ]
-
-networks:
-  stream-network:
-    driver: bridge
-
-volumes:
-  recordings_data:
-    driver: local
-  db_data:
-    driver: local
 

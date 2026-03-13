@@ -118,10 +118,15 @@ export function buildFFmpegArgs(rtspUrl: string, outputPath: string, duration: n
   const args: string[] = [];
 
   // Hardware acceleration input options
-  if (settings.hardwareAcceleration !== "none") {
-    const hwAccel = getHardwareAccelArgs(settings.hardwareAcceleration);
-    args.push(...hwAccel.input);
+  // Only apply hwaccel when re-encoding — if videoCodec is "copy", FFmpeg passes
+  // the encoded bitstream through without decoding, so GPU memory surface flags
+  // like -hwaccel_output_format cuda are meaningless and cause stream drops.
+  const isReencoding = settings.videoCodec !== "copy";
+  if (isReencoding && settings.hardwareAcceleration !== "none") {
+    args.push(...getHardwareAccelArgs(settings.hardwareAcceleration));
   }
+
+  args.push("-nostdin", "-hide_banner", "-use_wallclock_as_timestamps", "1");
 
   // RTSP transport
   args.push("-rtsp_transport", settings.rtspTransport);
@@ -169,7 +174,7 @@ export function buildFFmpegArgs(rtspUrl: string, outputPath: string, duration: n
 
   // Output format specific options
   if (settings.outputFormat === "mp4") {
-    args.push("-movflags", "+frag_keyframe+empty_moov");
+    args.push("-movflags", "+frag_keyframe+empty_moov+default_base_moof");
   }
 
   // Overwrite output
@@ -181,34 +186,66 @@ export function buildFFmpegArgs(rtspUrl: string, outputPath: string, duration: n
   return args;
 }
 
-function getHardwareAccelArgs(hwAccel: Settings["hardwareAcceleration"]): {
-  input: string[];
-  output: string[];
-} {
+const browserCompatibleVideoEncoder = "libx264";
+const browserCompatibleAudioEncoder = "aac";
+
+export function buildFFmpegArgsForPreview(rtspUrl: string): string[] {
+  const settings = loadSettings();
+
+  return [
+    ...(settings.hardwareAcceleration !== "none" ? getHardwareAccelArgs(settings.hardwareAcceleration) : []),
+    "-hide_banner",
+    "-loglevel",
+    "error",
+    "-rtsp_transport",
+    settings.rtspTransport,
+    "-rtsp_flags",
+    "prefer_tcp",
+    "-fflags",
+    "+genpts+discardcorrupt",
+    "-flags",
+    "low_delay",
+    "-probesize",
+    "50M",
+    "-analyzeduration",
+    "10M",
+    "-i",
+    rtspUrl,
+    "-map",
+    "0:v:0",
+    "-map",
+    "0:a?",
+    "-c:v",
+    browserCompatibleVideoEncoder,
+    "-preset",
+    "veryfast",
+    "-tune",
+    "zerolatency",
+    "-pix_fmt",
+    "yuv420p",
+    "-c:a",
+    browserCompatibleAudioEncoder,
+    "-movflags",
+    "+frag_keyframe+empty_moov+default_base_moof",
+    "-f",
+    "mp4",
+    "pipe:1",
+  ];
+}
+
+function getHardwareAccelArgs(hwAccel: Settings["hardwareAcceleration"]): string[] {
   switch (hwAccel) {
     case "nvidia":
-      return {
-        input: ["-hwaccel", "cuda", "-hwaccel_output_format", "cuda"],
-        output: [],
-      };
+      return ["-hwaccel", "cuda", "-hwaccel_output_format", "cuda"];
     case "intel":
-      return {
-        input: ["-hwaccel", "qsv", "-hwaccel_output_format", "qsv"],
-        output: [],
-      };
+      return ["-hwaccel", "qsv", "-hwaccel_output_format", "qsv"];
     case "amd":
-      return {
-        input: ["-hwaccel", "amf"],
-        output: [],
-      };
+      return ["-hwaccel", "amf"];
     case "auto":
       // Try CUDA first (most common), then QSV, then AMF
-      return {
-        input: ["-hwaccel", "auto"],
-        output: [],
-      };
+      return ["-hwaccel", "auto"];
     default:
-      return { input: [], output: [] };
+      return [];
   }
 }
 

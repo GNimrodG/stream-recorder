@@ -78,6 +78,8 @@ function ViewerPageContent() {
   const [isMuted, setIsMuted] = useState(false);
   const [isLoadingVideo, setIsLoadingVideo] = useState(true);
   const [isVideoError, setIsVideoError] = useState(false);
+  const isLivePlayback = !!selectedRecording && !selectedRecording.outputPath;
+  const isSeekable = Number.isFinite(duration) && duration > 0;
 
   const handleWatchVideo = useCallback((recording: RecordingWithStatus) => {
     setIsLoadingVideo(true);
@@ -139,7 +141,8 @@ function ViewerPageContent() {
 
   const handleLoadedMetadata = () => {
     if (videoRef.current) {
-      setDuration(videoRef.current.duration);
+      const loadedDuration = videoRef.current.duration;
+      setDuration(Number.isFinite(loadedDuration) ? loadedDuration : 0);
     }
   };
 
@@ -345,13 +348,18 @@ function ViewerPageContent() {
                     </>
                   )}
                   {recording.status === "recording" && (
-                    <Button
-                      size="small"
-                      color="error"
-                      startIcon={<LiveTvIcon />}
-                      onClick={() => handleWatchLive(recording)}>
-                      View Live
-                    </Button>
+                    <>
+                      <Button size="small" startIcon={<PlayArrowIcon />} onClick={() => handleWatchVideo(recording)}>
+                        Watch
+                      </Button>
+                      <Button
+                        size="small"
+                        color="error"
+                        startIcon={<LiveTvIcon />}
+                        onClick={() => handleWatchLive(recording)}>
+                        View Live
+                      </Button>
+                    </>
                   )}
                 </CardActions>
               </Card>
@@ -403,6 +411,13 @@ function ViewerPageContent() {
                 onEnded={() => setIsPlaying(false)}
               />
 
+              {isLivePlayback && !isVideoError && (
+                <Alert severity="info" sx={{ m: 2 }}>
+                  This recording is still in progress, so playback is being served as a live browser-compatible stream.
+                  Seeking becomes available after the recording is finalized.
+                </Alert>
+              )}
+
               {/* Loading indicator */}
               {isLoadingVideo && (
                 <Box
@@ -445,8 +460,9 @@ function ViewerPageContent() {
                 {/* Progress Bar */}
                 <Slider
                   value={currentTime}
-                  max={duration || 100}
+                  max={isSeekable ? duration : Math.max(currentTime, 1)}
                   onChange={handleSeek}
+                  disabled={!isSeekable}
                   sx={{ color: "primary.main", mb: 1 }}
                 />
 
@@ -456,7 +472,9 @@ function ViewerPageContent() {
                   </IconButton>
 
                   <Typography variant="body2" sx={{ color: "white", minWidth: 100 }}>
-                    {formatTime(currentTime)} / {formatTime(duration)}
+                    {isLivePlayback
+                      ? `${formatTime(currentTime)} / LIVE`
+                      : `${formatTime(currentTime)} / ${formatTime(duration)}`}
                   </Typography>
 
                   <Box sx={{ flexGrow: 1 }} />
