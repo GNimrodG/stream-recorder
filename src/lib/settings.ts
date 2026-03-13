@@ -13,13 +13,7 @@ function ensureDataDir() {
   }
 }
 
-let cachedSettings: Settings | null = null;
-
 export function loadSettings(): Settings {
-  if (cachedSettings) {
-    return cachedSettings;
-  }
-
   ensureDataDir();
 
   if (!fs.existsSync(SETTINGS_FILE)) {
@@ -31,14 +25,13 @@ export function loadSettings(): Settings {
     const data = fs.readFileSync(SETTINGS_FILE, "utf-8");
     const settings = JSON.parse(data);
     // Merge with defaults to ensure all fields exist
-    return (cachedSettings = { ...defaultSettings, ...settings });
+    return { ...defaultSettings, ...settings };
   } catch {
     return defaultSettings;
   }
 }
 
 export function saveSettings(settings: Settings): void {
-  cachedSettings = settings;
   ensureDataDir();
   fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2));
 }

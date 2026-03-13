@@ -2,6 +2,8 @@ import SettingsPageClient from "./SettingsPageClient";
 import { detectHardwareAcceleration, loadSettings } from "@/lib/settings";
 import { getStorageStats } from "@/lib/storage";
 
+export const dynamic = "force-dynamic";
+
 export default async function SettingsPage() {
   // Load settings directly from the file system
   const settings = loadSettings();

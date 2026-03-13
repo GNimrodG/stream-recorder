@@ -1,6 +1,8 @@
 import DashboardClient from "@/app/DashboardClient";
 import { ensureRecordingsInitialized, getAllRecordingsWithStats, getRecordingStats } from "@/lib/recordings";
 
+export const dynamic = "force-dynamic";
+
 export default async function DashboardPage() {
   ensureRecordingsInitialized();
 

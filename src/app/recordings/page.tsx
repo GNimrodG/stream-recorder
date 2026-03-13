@@ -2,6 +2,8 @@ import RecordingsPageClient from "@/app/recordings/RecordingsPageClient";
 import { ensureRecordingsInitialized, getPaginatedRecordingsWithStats } from "@/lib/recordings";
 import { RecordingFilterStatus } from "@/types/recording";
 
+export const dynamic = "force-dynamic";
+
 type PageSearchParams = Record<string, string | string[] | undefined>;
 
 function firstValue(value: string | string[] | undefined): string | undefined {
