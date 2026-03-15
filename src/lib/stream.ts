@@ -234,7 +234,7 @@ function checkSingleStreamStatus(url: string, connectionTimeout = 1000, response
 async function checkMultipleStreamStatus(
   urls: string[],
   connectionTimeout = 1000,
-  responseTimeout = 1000,
+  responseTimeout = 2000,
 ): Promise<StreamStatusMap> {
   const results: StreamStatusMap = {};
 

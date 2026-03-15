@@ -117,7 +117,7 @@ export function mergeRecordingParts(partPaths: string[], finalPath: string): boo
 export function buildFFmpegArgs(rtspUrl: string, outputPath: string, duration: number): string[] {
   const settings = loadSettings();
   const args: string[] = [];
-  const rtspTimeoutUs = Math.max(0, Math.floor((settings.rtspSocketTimeoutMs ?? 10000) * 1000)).toString();
+  const rtspIoTimeoutUs = Math.max(0, Math.floor((settings.rtspSocketTimeoutMs ?? 10000) * 1000)).toString();
 
   // Hardware acceleration input options
   // Only apply hwaccel when re-encoding — if videoCodec is "copy", FFmpeg passes
@@ -137,7 +137,7 @@ export function buildFFmpegArgs(rtspUrl: string, outputPath: string, duration: n
 
   // RTSP-specific options for better stability
   args.push("-rtsp_flags", "prefer_tcp");
-  args.push("-timeout", rtspTimeoutUs);
+  args.push("-rw_timeout", rtspIoTimeoutUs);
 
   // Buffer size settings for better handling of network jitter
   // Larger buffers help handle temporary network issues without dropping the connection and ignore DTS issues
@@ -201,7 +201,7 @@ const browserCompatibleAudioEncoder = "aac";
 
 export function buildFFmpegArgsForPreview(rtspUrl: string): string[] {
   const settings = loadSettings();
-  const rtspTimeoutUs = Math.max(0, Math.floor((settings.rtspSocketTimeoutMs ?? 10000) * 1000)).toString();
+  const rtspIoTimeoutUs = Math.max(0, Math.floor((settings.rtspSocketTimeoutMs ?? 10000) * 1000)).toString();
   const customArgs = parseCustomFFmpegArgs(settings.customFFmpegArgs);
 
   return [
@@ -213,8 +213,8 @@ export function buildFFmpegArgsForPreview(rtspUrl: string): string[] {
     settings.rtspTransport,
     "-rtsp_flags",
     "prefer_tcp",
-    "-timeout",
-    rtspTimeoutUs,
+    "-rw_timeout",
+    rtspIoTimeoutUs,
     "-fflags",
     "+genpts+igndts+discardcorrupt",
     "-flags",
