@@ -1,19 +1,67 @@
-name: Build and Push Docker Image
+name: CI and Build
 
 on:
-  workflow_run:
-    workflows:
-      - "CI"
-    types:
-      - completed
+  push:
+    branches:
+      - "master"
+  pull_request:
+    branches:
+      - "master"
 
 jobs:
+  test:
+    name: Test on ${{ matrix.node-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [ 24.x ]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'yarn'
+
+      - name: Cache yarn and node_modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/yarn
+            node_modules
+          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-yarn-
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Run tests and write JUnit report
+        run: yarn test --run --reporter=junit --outputFile=test-results.xml
+
+      - name: Publish JUnit results to Checks UI
+        uses: dorny/test-reporter@v2
+        if: ${{ !cancelled() }}       # run this step even if previous step failed
+        with:
+          name: Tests          # Name of the check run which will be created
+          path: test-results.xml    # Path to test results
+          reporter: jest-junit        # Format of test results
+
+      - name: Upload raw test artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: test-results.xml
   build-and-push:
     name: Build and Push
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    needs: test
     runs-on: ubuntu-latest
     env:
-      SHOULD_PUSH: ${{ github.event.workflow_run.event != 'pull_request' && github.event.workflow_run.head_branch == 'master' && secrets.DOCKER_REGISTRY_USERNAME != '' }}
+      # Only push when this run is not a pull_request and we're on the master branch
+      SHOULD_PUSH: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/master' && secrets.DOCKER_REGISTRY_USERNAME != '' }}
       DEPLOYMENT_WEBHOOK_URL: ${{ secrets.DEPLOYMENT_WEBHOOK_URL }}
     steps:
       - name: Checkout

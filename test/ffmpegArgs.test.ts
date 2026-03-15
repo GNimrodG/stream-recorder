@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { parseCustomFFmpegArgs } from "@/lib/ffmpegArgs";
+// noinspection ES6PreferShortImport
+import { parseCustomFFmpegArgs } from "../src/lib/ffmpegArgs";
 
 describe("parseCustomFFmpegArgs", () => {
   it("returns empty array for empty input", () => {
