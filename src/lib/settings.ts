@@ -1,5 +1,6 @@
 import { defaultSettings, Settings } from "@/types/settings";
 import { parseCustomFFmpegArgs } from "@/lib/ffmpegArgs";
+import { resolveRtspTimeoutFlag } from "@/lib/ffmpegRtspTimeout";
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -136,12 +137,14 @@ export function detectHardwareAcceleration(): HardwareAccelInfo {
 // Generate snapshot from RTSP stream
 export function generateSnapshotArgs(rtspUrl: string, outputPath: string, settings: Settings): string[] {
   const args: string[] = [];
+  const ffmpegPath = process.env.FFMPEG_PATH || settings.ffmpegPath || "ffmpeg";
   const rtspIoTimeoutUs = Math.max(0, Math.floor((settings.rtspSocketTimeoutMs ?? 10000) * 1000)).toString();
+  const rtspTimeoutFlag = resolveRtspTimeoutFlag(ffmpegPath);
   const customArgs = parseCustomFFmpegArgs(settings.customFFmpegArgs);
 
   args.push("-rtsp_transport", settings.rtspTransport);
   args.push("-rtsp_flags", "prefer_tcp");
-  args.push("-rw_timeout", rtspIoTimeoutUs);
+  args.push(rtspTimeoutFlag, rtspIoTimeoutUs);
   args.push(...customArgs);
   args.push("-i", rtspUrl);
   args.push("-vframes", "1");

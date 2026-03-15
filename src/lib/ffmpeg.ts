@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { parseCustomFFmpegArgs } from "@/lib/ffmpegArgs";
+import { resolveRtspTimeoutFlag } from "@/lib/ffmpegRtspTimeout";
 import { generateSnapshotArgs, loadSettings } from "@/lib/settings";
 import { spawn, spawnSync } from "node:child_process";
 import { Settings } from "@/types/settings";
@@ -116,8 +117,10 @@ export function mergeRecordingParts(partPaths: string[], finalPath: string): boo
 // Build FFmpeg arguments based on settings
 export function buildFFmpegArgs(rtspUrl: string, outputPath: string, duration: number): string[] {
   const settings = loadSettings();
+  const ffmpegPath = process.env.FFMPEG_PATH || settings.ffmpegPath || "ffmpeg";
   const args: string[] = [];
   const rtspIoTimeoutUs = Math.max(0, Math.floor((settings.rtspSocketTimeoutMs ?? 10000) * 1000)).toString();
+  const rtspTimeoutFlag = resolveRtspTimeoutFlag(ffmpegPath);
 
   // Hardware acceleration input options
   // Only apply hwaccel when re-encoding — if videoCodec is "copy", FFmpeg passes
@@ -137,7 +140,7 @@ export function buildFFmpegArgs(rtspUrl: string, outputPath: string, duration: n
 
   // RTSP-specific options for better stability
   args.push("-rtsp_flags", "prefer_tcp");
-  args.push("-rw_timeout", rtspIoTimeoutUs);
+  args.push(rtspTimeoutFlag, rtspIoTimeoutUs);
 
   // Buffer size settings for better handling of network jitter
   // Larger buffers help handle temporary network issues without dropping the connection and ignore DTS issues
@@ -201,7 +204,9 @@ const browserCompatibleAudioEncoder = "aac";
 
 export function buildFFmpegArgsForPreview(rtspUrl: string): string[] {
   const settings = loadSettings();
+  const ffmpegPath = process.env.FFMPEG_PATH || settings.ffmpegPath || "ffmpeg";
   const rtspIoTimeoutUs = Math.max(0, Math.floor((settings.rtspSocketTimeoutMs ?? 10000) * 1000)).toString();
+  const rtspTimeoutFlag = resolveRtspTimeoutFlag(ffmpegPath);
   const customArgs = parseCustomFFmpegArgs(settings.customFFmpegArgs);
 
   return [
@@ -213,7 +218,7 @@ export function buildFFmpegArgsForPreview(rtspUrl: string): string[] {
     settings.rtspTransport,
     "-rtsp_flags",
     "prefer_tcp",
-    "-rw_timeout",
+    rtspTimeoutFlag,
     rtspIoTimeoutUs,
     "-fflags",
     "+genpts+igndts+discardcorrupt",

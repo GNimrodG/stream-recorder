@@ -33,26 +33,30 @@ vi.mock("@/lib/ffmpegArgs", () => ({
   parseCustomFFmpegArgs: () => [],
 }));
 
+vi.mock("@/lib/ffmpegRtspTimeout", () => ({
+  resolveRtspTimeoutFlag: () => "-timeout",
+}));
+
 describe("FFmpeg timeout arguments", () => {
   beforeEach(() => {
     vi.resetModules();
   });
 
-  it("uses -rw_timeout for recording args", async () => {
+  it("uses resolved timeout flag for recording args", async () => {
     const { buildFFmpegArgs } = await import("../src/lib/ffmpeg");
     const args = buildFFmpegArgs("rtsp://example/live", "out.mp4", 60);
 
-    expect(args).toContain("-rw_timeout");
-    expect(args[args.indexOf("-rw_timeout") + 1]).toBe("1234000");
-    expect(args).not.toContain("-timeout");
+    expect(args).toContain("-timeout");
+    expect(args[args.indexOf("-timeout") + 1]).toBe("1234000");
+    expect(args).not.toContain("-rw_timeout");
   });
 
-  it("uses -rw_timeout for preview args", async () => {
+  it("uses resolved timeout flag for preview args", async () => {
     const { buildFFmpegArgsForPreview } = await import("../src/lib/ffmpeg");
     const args = buildFFmpegArgsForPreview("rtsp://example/live");
 
-    expect(args).toContain("-rw_timeout");
-    expect(args[args.indexOf("-rw_timeout") + 1]).toBe("1234000");
-    expect(args).not.toContain("-timeout");
+    expect(args).toContain("-timeout");
+    expect(args[args.indexOf("-timeout") + 1]).toBe("1234000");
+    expect(args).not.toContain("-rw_timeout");
   });
 });
