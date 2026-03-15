@@ -33,11 +33,13 @@ import StorageIcon from "@mui/icons-material/Storage";
 import VideoSettingsIcon from "@mui/icons-material/VideoSettings";
 import VideoLibraryIcon from "@mui/icons-material/VideoLibrary";
 import PreviewIcon from "@mui/icons-material/Preview";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CancelIcon from "@mui/icons-material/Cancel";
 import DeleteSweepIcon from "@mui/icons-material/DeleteSweep";
 import { Settings } from "@/types/settings";
 import NumberField from "@/components/inputs/NumberField";
+import FormHelperText from "@mui/material/FormHelperText";
 
 interface HardwareAccelInfo {
   nvidia: boolean;
@@ -275,6 +277,7 @@ export default function SettingsPageClient({
               </FormControl>
 
               <TextField
+                sx={{ mb: 2 }}
                 fullWidth
                 label="FFmpeg Path"
                 value={settings.ffmpegPath}
@@ -288,6 +291,37 @@ export default function SettingsPageClient({
                       : "Leave as 'ffmpeg' if installed in PATH"
                 }
               />
+
+              <TextField
+                sx={{ mb: 2 }}
+                fullWidth
+                label="Custom FFmpeg Args"
+                value={settings.customFFmpegArgs}
+                onChange={(e) => handleChange("customFFmpegArgs", e.target.value)}
+                placeholder="Example: -fflags +nobuffer -max_delay 500000"
+                helperText="Optional args injected before -i for recording, preview, and snapshot commands"
+              />
+
+              <FormControl fullWidth>
+                <InputLabel>FFmpeg log level</InputLabel>
+                <Select
+                  value={settings.logLevel}
+                  label="FFmpeg log level"
+                  onChange={(e) => handleChange("logLevel", e.target.value as Settings["logLevel"])}>
+                  <MenuItem value="quiet">Quiet</MenuItem>
+                  <MenuItem value="panic">Panic</MenuItem>
+                  <MenuItem value="fatal">Fatal</MenuItem>
+                  <MenuItem value="error">Error</MenuItem>
+                  <MenuItem value="warning">Warning</MenuItem>
+                  <MenuItem value="info">Info</MenuItem>
+                  <MenuItem value="verbose">Verbose</MenuItem>
+                  <MenuItem value="debug">Debug</MenuItem>
+                  <MenuItem value="trace">Trace</MenuItem>
+                </Select>
+              </FormControl>
+              <FormHelperText>
+                If the loglevel doesn&apos;t print frame data then the progress feedback won&apos;t work either.
+              </FormHelperText>
             </CardContent>
           </Card>
         </Grid>
@@ -356,6 +390,44 @@ export default function SettingsPageClient({
                       <MenuItem value="http">HTTP</MenuItem>
                     </Select>
                   </FormControl>
+                </Grid>
+                <Grid size={{ xs: 6 }}>
+                  <NumberField
+                    fullWidth
+                    label={
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                        RTSP Socket Timeout
+                        <Tooltip
+                          title={
+                            <Box>
+                              <Typography variant="caption" sx={{ display: "block" }}>
+                                Suggested starting ranges
+                              </Typography>
+                              <Typography variant="caption" sx={{ display: "block" }}>
+                                TCP: 8000-15000 ms
+                              </Typography>
+                              <Typography variant="caption" sx={{ display: "block" }}>
+                                HTTP tunnel: 15000-30000 ms
+                              </Typography>
+                              <Typography variant="caption" sx={{ display: "block" }}>
+                                UDP: 3000-8000 ms
+                              </Typography>
+                            </Box>
+                          }>
+                          <InfoOutlinedIcon fontSize="small" />
+                        </Tooltip>
+                      </Box>
+                    }
+                    min={0}
+                    value={settings.rtspSocketTimeoutMs}
+                    onValueChange={(v) => handleChange("rtspSocketTimeoutMs", v ?? 10000)}
+                    slotProps={{
+                      input: {
+                        endAdornment: <InputAdornment position="end">ms</InputAdornment>,
+                      },
+                    }}
+                    helperText="0 disables timeout"
+                  />
                 </Grid>
               </Grid>
             </CardContent>

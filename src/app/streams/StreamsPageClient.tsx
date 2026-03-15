@@ -28,7 +28,7 @@ import {
   TableRow,
   TextField,
   Tooltip,
-  Typography,
+  Typography
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
@@ -73,6 +73,7 @@ export default function StreamsPageClient({ initialStreams }: Props) {
     rtspUrl: "",
     description: "",
     favorite: false,
+    autoRecordWhenLive: false,
   });
 
   const fetchStreams = useCallback(async () => {
@@ -119,8 +120,19 @@ export default function StreamsPageClient({ initialStreams }: Props) {
 
   const fetchStreamStatuses = useCallback(async () => {
     try {
-      const statusPromises = streams.map((stream) => fetchStreamStatus(stream.id));
-      await Promise.allSettled(statusPromises);
+      const response = await fetch("/api/streams/status");
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch stream statuses");
+      }
+
+      const data = (await response.json()) as StreamStatusResult[];
+      const nextState = data.reduce<Record<string, StreamStatusResult>>((acc, item) => {
+        acc[item.id] = item;
+        return acc;
+      }, {});
+
+      setStreamStatuses(nextState);
     } catch (error) {
       setSnackbar({
         open: true,
@@ -128,7 +140,7 @@ export default function StreamsPageClient({ initialStreams }: Props) {
         severity: "error",
       });
     }
-  }, [fetchStreamStatus, streams]);
+  }, []);
 
   // Fetch stream statuses on initial load and every 5 minutes
   useEffect(() => {
@@ -150,6 +162,7 @@ export default function StreamsPageClient({ initialStreams }: Props) {
         rtspUrl: "",
         description: "",
         favorite: false,
+        autoRecordWhenLive: false,
       });
     }
     setDialogOpen(true);
@@ -158,7 +171,7 @@ export default function StreamsPageClient({ initialStreams }: Props) {
   const handleCloseDialog = () => {
     setDialogOpen(false);
     setSelectedStream(null);
-    setFormData({ name: "", rtspUrl: "", description: "" });
+    setFormData({ name: "", rtspUrl: "", description: "", favorite: false, autoRecordWhenLive: false });
   };
 
   const handleSaveStream = async () => {
@@ -455,6 +468,7 @@ export default function StreamsPageClient({ initialStreams }: Props) {
                     <TableCell>Name</TableCell>
                     <TableCell>RTSP URL</TableCell>
                     <TableCell>Description</TableCell>
+                    <TableCell>Auto Record</TableCell>
                     <TableCell>Added</TableCell>
                     <TableCell>Status</TableCell>
                     <TableCell align="right">Actions</TableCell>
@@ -495,6 +509,13 @@ export default function StreamsPageClient({ initialStreams }: Props) {
                         <Typography variant="body2" color="text.secondary">
                           {stream.description || "-"}
                         </Typography>
+                      </TableCell>
+                      <TableCell>
+                        {stream.autoRecordWhenLive ? (
+                          <Chip label="Enabled" size="small" color="success" variant="filled" />
+                        ) : (
+                          <Chip label="Disabled" size="small" color="default" variant="outlined" />
+                        )}
                       </TableCell>
                       {/* Added */}
                       <TableCell>
@@ -588,6 +609,16 @@ export default function StreamsPageClient({ initialStreams }: Props) {
                 />
               }
               label="Mark as Favorite for quick access"
+            />
+
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={formData.autoRecordWhenLive || false}
+                  onChange={(e) => setFormData({ ...formData, autoRecordWhenLive: e.target.checked })}
+                />
+              }
+              label="Auto-record while stream is live (checked every 5 minutes)"
             />
           </Box>
         </DialogContent>

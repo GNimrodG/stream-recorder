@@ -1,7 +1,8 @@
-import fs from "fs";
-import path from "path";
+import fs from "node:fs";
+import path from "node:path";
+import { parseCustomFFmpegArgs } from "@/lib/ffmpegArgs";
 import { generateSnapshotArgs, loadSettings } from "@/lib/settings";
-import { spawn, spawnSync } from "child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { Settings } from "@/types/settings";
 
 /**
@@ -116,6 +117,7 @@ export function mergeRecordingParts(partPaths: string[], finalPath: string): boo
 export function buildFFmpegArgs(rtspUrl: string, outputPath: string, duration: number): string[] {
   const settings = loadSettings();
   const args: string[] = [];
+  const rtspTimeoutUs = Math.max(0, Math.floor((settings.rtspSocketTimeoutMs ?? 10000) * 1000)).toString();
 
   // Hardware acceleration input options
   // Only apply hwaccel when re-encoding — if videoCodec is "copy", FFmpeg passes
@@ -128,15 +130,18 @@ export function buildFFmpegArgs(rtspUrl: string, outputPath: string, duration: n
 
   args.push("-nostdin", "-hide_banner", "-use_wallclock_as_timestamps", "1");
 
+  args.push("-loglevel", settings.logLevel || "info");
+
   // RTSP transport
   args.push("-rtsp_transport", settings.rtspTransport);
 
   // RTSP-specific options for better stability
   args.push("-rtsp_flags", "prefer_tcp");
+  args.push("-timeout", rtspTimeoutUs);
 
   // Buffer size settings for better handling of network jitter
-  // Larger buffers help handle temporary network issues without dropping the connection
-  args.push("-fflags", "+genpts+discardcorrupt");
+  // Larger buffers help handle temporary network issues without dropping the connection and ignore DTS issues
+  args.push("-fflags", "+genpts+igndts+discardcorrupt");
   args.push("-flags", "low_delay");
 
   // Increase probe size and analyze duration to better handle stream initialization
@@ -145,6 +150,11 @@ export function buildFFmpegArgs(rtspUrl: string, outputPath: string, duration: n
   args.push("-analyzeduration", "10M");
 
   // Input
+  const customArgs = parseCustomFFmpegArgs(settings.customFFmpegArgs);
+  if (customArgs.length > 0) {
+    args.push(...customArgs);
+  }
+
   args.push("-i", rtspUrl);
 
   // Video codec
@@ -191,9 +201,11 @@ const browserCompatibleAudioEncoder = "aac";
 
 export function buildFFmpegArgsForPreview(rtspUrl: string): string[] {
   const settings = loadSettings();
+  const rtspTimeoutUs = Math.max(0, Math.floor((settings.rtspSocketTimeoutMs ?? 10000) * 1000)).toString();
+  const customArgs = parseCustomFFmpegArgs(settings.customFFmpegArgs);
 
   return [
-    ...(settings.hardwareAcceleration !== "none" ? getHardwareAccelArgs(settings.hardwareAcceleration) : []),
+    ...(settings.hardwareAcceleration === "none" ? [] : getHardwareAccelArgs(settings.hardwareAcceleration)),
     "-hide_banner",
     "-loglevel",
     "error",
@@ -201,14 +213,17 @@ export function buildFFmpegArgsForPreview(rtspUrl: string): string[] {
     settings.rtspTransport,
     "-rtsp_flags",
     "prefer_tcp",
+    "-timeout",
+    rtspTimeoutUs,
     "-fflags",
-    "+genpts+discardcorrupt",
+    "+genpts+igndts+discardcorrupt",
     "-flags",
     "low_delay",
     "-probesize",
     "50M",
     "-analyzeduration",
     "10M",
+    ...customArgs,
     "-i",
     rtspUrl,
     "-map",

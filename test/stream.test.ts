@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import net from "node:net";
-import { EventEmitter } from "events";
+import { EventEmitter } from "node:events";
 
 let originalCreateConnection: typeof net.createConnection;
 
@@ -172,5 +172,26 @@ describe("stream checkStreamStatus", () => {
     fakeSocket2.emitData!("RTSP/1.0 404 Not Found\r\nCSeq: 1\r\n\r\n");
     const r2 = await p2;
     expect(r2).toBe("not_found");
+  });
+
+  it("checks multiple URLs on same host using a single TCP connection", async () => {
+    const fakeSocket = await createFakeSocket();
+    (net.createConnection as unknown) = vi.fn(() => fakeSocket as unknown as net.Socket);
+
+    const mod = await import("../src/lib/stream");
+
+    const p = mod.checkStreamStatus(["rtsp://localhost/one", "rtsp://localhost/two"], 1000, 1000);
+
+    expect(net.createConnection as unknown as any).toHaveBeenCalledTimes(1);
+
+    fakeSocket.emit("connect");
+    fakeSocket.emitData!("RTSP/1.0 200 OK\r\nCSeq: 1\r\n\r\n");
+    fakeSocket.emitData!("RTSP/1.0 404 Not Found\r\nCSeq: 2\r\n\r\n");
+
+    const result = await p;
+    expect(result).toEqual({
+      "rtsp://localhost/one": "live",
+      "rtsp://localhost/two": "not_found",
+    });
   });
 });

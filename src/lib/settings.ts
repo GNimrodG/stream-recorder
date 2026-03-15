@@ -1,7 +1,8 @@
 import { defaultSettings, Settings } from "@/types/settings";
-import fs from "fs";
-import path from "path";
-import { execSync } from "child_process";
+import { parseCustomFFmpegArgs } from "@/lib/ffmpegArgs";
+import fs from "node:fs";
+import path from "node:path";
+import { spawnSync } from "node:child_process";
 
 const SETTINGS_FILE = process.env.SETTINGS_FILE_PATH || "./data/settings.json";
 
@@ -51,6 +52,45 @@ export interface HardwareAccelInfo {
   available: string[];
 }
 
+function runFfmpegSync(ffmpegPath: string, args: string[]): { status: number | null; output: string } {
+  const result = spawnSync(ffmpegPath, args, {
+    encoding: "utf-8",
+    timeout: 7000,
+  });
+
+  return {
+    status: result.status,
+    output: `${result.stdout || ""}${result.stderr || ""}`.toLowerCase(),
+  };
+}
+
+function encoderRuntimeProbe(ffmpegPath: string, encoder: string): boolean {
+  const probe = runFfmpegSync(ffmpegPath, [
+    "-hide_banner",
+    "-loglevel",
+    "error",
+    "-f",
+    "lavfi",
+    "-i",
+    "testsrc=size=1280x720:rate=1",
+    "-frames:v",
+    "1",
+    "-pix_fmt",
+    "yuv420p",
+    "-c:v",
+    encoder,
+    "-f",
+    "null",
+    "-",
+  ]);
+
+  if (process.env.NODE_ENV !== "production") {
+    console.debug(`[DEBUG] Probing encoder ${encoder}:`, probe);
+  }
+
+  return probe.status === 0;
+}
+
 export function detectHardwareAcceleration(): HardwareAccelInfo {
   const info: HardwareAccelInfo = {
     nvidia: false,
@@ -60,25 +100,25 @@ export function detectHardwareAcceleration(): HardwareAccelInfo {
   };
 
   try {
-    // Try to get FFmpeg hardware acceleration info
-    const output = execSync("ffmpeg -hide_banner -hwaccels", {
-      encoding: "utf-8",
-      timeout: 5000,
-    });
+    const ffmpegPath = process.env.FFMPEG_PATH || loadSettings().ffmpegPath || "ffmpeg";
 
-    const lines = output.toLowerCase();
+    const hwAccelOutput = runFfmpegSync(ffmpegPath, ["-hide_banner", "-hwaccels"]).output;
+    const encoderOutput = runFfmpegSync(ffmpegPath, ["-hide_banner", "-encoders"]).output;
 
-    if (lines.includes("cuda") || lines.includes("nvenc") || lines.includes("cuvid")) {
+    const nvidiaCompiled = hwAccelOutput.includes("cuda") || encoderOutput.includes("h264_nvenc");
+    if (nvidiaCompiled && encoderRuntimeProbe(ffmpegPath, "h264_nvenc")) {
       info.nvidia = true;
       info.available.push("nvidia");
     }
 
-    if (lines.includes("qsv") || lines.includes("vaapi")) {
+    const intelCompiled = hwAccelOutput.includes("qsv") || encoderOutput.includes("h264_qsv");
+    if (intelCompiled && encoderRuntimeProbe(ffmpegPath, "h264_qsv")) {
       info.intel = true;
       info.available.push("intel");
     }
 
-    if (lines.includes("amf") || lines.includes("vaapi")) {
+    const amdCompiled = hwAccelOutput.includes("amf") || encoderOutput.includes("h264_amf");
+    if (amdCompiled && encoderRuntimeProbe(ffmpegPath, "h264_amf")) {
       info.amd = true;
       info.available.push("amd");
     }
@@ -96,8 +136,13 @@ export function detectHardwareAcceleration(): HardwareAccelInfo {
 // Generate snapshot from RTSP stream
 export function generateSnapshotArgs(rtspUrl: string, outputPath: string, settings: Settings): string[] {
   const args: string[] = [];
+  const rtspTimeoutUs = Math.max(0, Math.floor((settings.rtspSocketTimeoutMs ?? 10000) * 1000)).toString();
+  const customArgs = parseCustomFFmpegArgs(settings.customFFmpegArgs);
 
   args.push("-rtsp_transport", settings.rtspTransport);
+  args.push("-rtsp_flags", "prefer_tcp");
+  args.push("-timeout", rtspTimeoutUs);
+  args.push(...customArgs);
   args.push("-i", rtspUrl);
   args.push("-vframes", "1");
 

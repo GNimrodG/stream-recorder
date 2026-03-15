@@ -11,24 +11,20 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
 
     if (!body.name || !body.rtspUrl) {
-      return NextResponse.json(
-        { error: "Name and RTSP URL are required" },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: "Name and RTSP URL are required" }, { status: 400 });
     }
 
     const stream = createStream({
       name: body.name,
       rtspUrl: body.rtspUrl,
       description: body.description,
+      favorite: body.favorite,
+      autoRecordWhenLive: body.autoRecordWhenLive,
     });
 
     return NextResponse.json(stream, { status: 201 });
   } catch (error) {
     console.error("Error creating stream:", error);
-    return NextResponse.json(
-      { error: "Failed to create stream" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Failed to create stream" }, { status: 500 });
   }
 }

@@ -1,10 +1,11 @@
 import DashboardClient from "@/app/DashboardClient";
-import { ensureRecordingsInitialized, getAllRecordingsWithStats, getRecordingStats } from "@/lib/recordings";
+import { getAllRecordingsWithStats, getRecordingStats } from "@/lib/recordings";
+import { ensureAppRuntimeInitialized } from "@/lib/runtime";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  ensureRecordingsInitialized();
+  ensureAppRuntimeInitialized();
 
   const initialRecordings = getAllRecordingsWithStats()
     .toSorted((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())

@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  createRecording,
-  ensureRecordingsInitialized,
-  getAllRecordingsWithStats,
-  getPaginatedRecordingsWithStats,
-} from "@/lib/recordings";
+import { createRecording, getAllRecordingsWithStats, getPaginatedRecordingsWithStats } from "@/lib/recordings";
 import { CreateRecordingDto, RecordingFilterStatus } from "@/types/recording";
+import { ensureAppRuntimeInitialized } from "@/lib/runtime";
 
 export function ensureInitialized() {
-  ensureRecordingsInitialized();
+  ensureAppRuntimeInitialized();
 }
 
 function parsePositiveInt(value: string | null, defaultValue: number): number {

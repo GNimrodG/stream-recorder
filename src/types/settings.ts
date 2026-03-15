@@ -1,3 +1,5 @@
+export type LogLevel = "quiet" | "panic" | "fatal" | "error" | "warning" | "info" | "verbose" | "debug" | "trace";
+
 export interface Settings {
   // FFmpeg Settings
   ffmpegPath: string;
@@ -5,10 +7,13 @@ export interface Settings {
   outputFormat: "mp4" | "mkv" | "avi" | "ts";
   videoCodec: "copy" | "h264" | "h265" | "vp9";
   audioCodec: "copy" | "aac" | "mp3" | "opus";
+  customFFmpegArgs: string;
+  logLevel: LogLevel;
 
   // Recording Settings
   defaultDuration: number; // in seconds
   rtspTransport: "tcp" | "udp" | "http";
+  rtspSocketTimeoutMs: number; // in milliseconds, 0 disables timeout
   reconnectAttempts: number;
   reconnectDelay: number; // in seconds
 
@@ -29,8 +34,11 @@ export const defaultSettings: Settings = {
   outputFormat: "mp4",
   videoCodec: "copy",
   audioCodec: "copy",
+  customFFmpegArgs: "",
+  logLevel: "info",
   defaultDuration: 3600,
   rtspTransport: "tcp",
+  rtspSocketTimeoutMs: 10000,
   reconnectAttempts: 3,
   reconnectDelay: 5,
   outputDirectory: "./recordings",

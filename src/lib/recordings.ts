@@ -3,7 +3,7 @@ import {
   RecordingFilterStatus,
   RecordingPaginationMeta,
   RecordingStats,
-  RecordingWithStatus
+  RecordingWithStatus,
 } from "@/types/recording";
 import { randomUUID } from "crypto";
 import fs from "fs";
@@ -196,6 +196,8 @@ export function createRecording(data: {
   rtspUrl: string;
   startTime: string;
   duration: number;
+  sourceStreamId?: string;
+  autoStopWhenStreamOffline?: boolean;
 }): Recording {
   const recordings = loadRecordings();
   const now = new Date().toISOString();
@@ -206,6 +208,8 @@ export function createRecording(data: {
     rtspUrl: data.rtspUrl,
     startTime: data.startTime,
     duration: data.duration,
+    sourceStreamId: data.sourceStreamId,
+    autoStopWhenStreamOffline: data.autoStopWhenStreamOffline,
     createdAt: now,
     updatedAt: now,
   };

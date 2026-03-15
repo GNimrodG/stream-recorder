@@ -42,7 +42,13 @@ export function getStreamById(id: string): SavedStream | undefined {
   return streams.find((s) => s.id === id);
 }
 
-export function createStream(data: { name: string; rtspUrl: string; description?: string }): SavedStream {
+export function createStream(data: {
+  name: string;
+  rtspUrl: string;
+  description?: string;
+  favorite?: boolean;
+  autoRecordWhenLive?: boolean;
+}): SavedStream {
   const streams = loadStreams();
   const now = new Date().toISOString();
 
@@ -51,6 +57,8 @@ export function createStream(data: { name: string; rtspUrl: string; description?
     name: data.name,
     rtspUrl: data.rtspUrl,
     description: data.description,
+    favorite: data.favorite ?? false,
+    autoRecordWhenLive: data.autoRecordWhenLive ?? false,
     createdAt: now,
     updatedAt: now,
   };

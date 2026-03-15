@@ -8,6 +8,7 @@ export interface SavedStream {
   createdAt: string;
   updatedAt: string;
   favorite?: boolean;
+  autoRecordWhenLive?: boolean;
 }
 
 export interface StreamStatusResult {

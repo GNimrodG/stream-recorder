@@ -1,5 +1,6 @@
 import RecordingsPageClient from "@/app/recordings/RecordingsPageClient";
-import { ensureRecordingsInitialized, getPaginatedRecordingsWithStats } from "@/lib/recordings";
+import { getPaginatedRecordingsWithStats } from "@/lib/recordings";
+import { ensureAppRuntimeInitialized } from "@/lib/runtime";
 import { RecordingFilterStatus } from "@/types/recording";
 
 export const dynamic = "force-dynamic";
@@ -39,7 +40,7 @@ function parseStatus(value: string | undefined): RecordingFilterStatus {
 }
 
 export default async function RecordingsPage({ searchParams }: { searchParams?: Promise<PageSearchParams> }) {
-  ensureRecordingsInitialized();
+  ensureAppRuntimeInitialized();
 
   const resolvedSearchParams = (await searchParams) ?? {};
   const page = parsePositiveInt(firstValue(resolvedSearchParams.page), 1);

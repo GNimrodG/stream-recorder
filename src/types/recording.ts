@@ -13,6 +13,8 @@ export interface Recording {
   rtspUrl: string;
   startTime: string; // ISO date string
   duration: number; // Duration in seconds
+  sourceStreamId?: string;
+  autoStopWhenStreamOffline?: boolean;
   success?: boolean;
   outputPath?: string;
   createdAt: string;
