@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any,@typescript-eslint/no-unused-vars */
 // noinspection JSUnusedGlobalSymbols
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventEmitter } from "events";
 
 // Mocks: we'll mock modules that RecordingManager imports by specifier
@@ -33,6 +33,11 @@ vi.mock("@/lib/ffmpeg", () => ({
     // default merge behavior in tests is to succeed
     return true;
   }),
+}));
+
+vi.mock("@/lib/ffmpegRtspTimeout", () => ({
+  extractUnsupportedRtspTimeoutFlag: () => null,
+  reportUnsupportedRtspTimeoutFlag: () => "-timeout",
 }));
 
 // Mock recordings persistence

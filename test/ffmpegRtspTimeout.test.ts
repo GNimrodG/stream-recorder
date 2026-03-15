@@ -1,52 +1,53 @@
 // noinspection ES6PreferShortImport
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { spawnSync } from "node:child_process";
-import { resetRtspTimeoutFlagCacheForTests, resolveRtspTimeoutFlag } from "../src/lib/ffmpegRtspTimeout";
-
-vi.mock("node:child_process", () => ({
-  spawnSync: vi.fn(),
-}));
-
-const spawnSyncMock = vi.mocked(spawnSync);
+import { beforeEach, describe, expect, it } from "vitest";
+import {
+  extractUnsupportedRtspTimeoutFlag,
+  reportUnsupportedRtspTimeoutFlag,
+  resetRtspTimeoutFlagCacheForTests,
+  resolveRtspTimeoutFlag,
+} from "../src/lib/ffmpegRtspTimeout";
 
 describe("resolveRtspTimeoutFlag", () => {
   beforeEach(() => {
     resetRtspTimeoutFlagCacheForTests();
-    spawnSyncMock.mockReset();
   });
 
-  it("prefers -rw_timeout when supported", () => {
-    spawnSyncMock.mockReturnValue({ stdout: "-rw_timeout", stderr: "", status: 0 } as never);
-
+  it("defaults to -rw_timeout", () => {
     expect(resolveRtspTimeoutFlag("ffmpeg")).toBe("-rw_timeout");
   });
 
-  it("falls back to -stimeout when -rw_timeout is not available", () => {
-    spawnSyncMock.mockReturnValue({ stdout: "-stimeout", stderr: "", status: 0 } as never);
-
+  it("returns cached value after demotion", () => {
+    reportUnsupportedRtspTimeoutFlag("ffmpeg", "-rw_timeout");
     expect(resolveRtspTimeoutFlag("ffmpeg")).toBe("-stimeout");
   });
 
-  it("falls back to -timeout when only legacy timeout is available", () => {
-    spawnSyncMock.mockReturnValue({ stdout: "-timeout", stderr: "", status: 0 } as never);
-
+  it("demotes -stimeout to -timeout", () => {
+    reportUnsupportedRtspTimeoutFlag("ffmpeg", "-stimeout");
     expect(resolveRtspTimeoutFlag("ffmpeg")).toBe("-timeout");
   });
 
-  it("caches detected value per ffmpeg path", () => {
-    spawnSyncMock.mockReturnValue({ stdout: "-rw_timeout", stderr: "", status: 0 } as never);
+  it("stays at -timeout when already at end of fallback chain", () => {
+    reportUnsupportedRtspTimeoutFlag("ffmpeg", "-timeout");
+    expect(resolveRtspTimeoutFlag("ffmpeg")).toBe("-timeout");
+  });
+});
 
-    expect(resolveRtspTimeoutFlag("ffmpeg-custom")).toBe("-rw_timeout");
-    expect(resolveRtspTimeoutFlag("ffmpeg-custom")).toBe("-rw_timeout");
-    expect(spawnSyncMock).toHaveBeenCalledTimes(1);
+describe("extractUnsupportedRtspTimeoutFlag", () => {
+  it("detects -rw_timeout", () => {
+    expect(extractUnsupportedRtspTimeoutFlag("Option rw_timeout not found.")).toBe("-rw_timeout");
   });
 
-  it("uses legacy timeout fallback if probe throws", () => {
-    spawnSyncMock.mockImplementation(() => {
-      throw new Error("probe failed");
-    });
+  it("detects -stimeout", () => {
+    expect(extractUnsupportedRtspTimeoutFlag("Option stimeout not found.")).toBe("-stimeout");
+  });
 
-    expect(resolveRtspTimeoutFlag("ffmpeg")).toBe("-timeout");
+  it("detects -timeout", () => {
+    expect(extractUnsupportedRtspTimeoutFlag("Option timeout not found.")).toBe("-timeout");
+  });
+
+  it("returns null for unrelated stderr lines", () => {
+    expect(extractUnsupportedRtspTimeoutFlag("Connection refused")).toBeNull();
+    expect(extractUnsupportedRtspTimeoutFlag("Successfully connected")).toBeNull();
   });
 });

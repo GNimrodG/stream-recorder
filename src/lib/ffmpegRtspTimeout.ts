@@ -1,44 +1,27 @@
-import { spawnSync } from "node:child_process";
-
 export type RtspTimeoutFlag = "-rw_timeout" | "-stimeout" | "-timeout";
 
+const timeoutFlagOrder: RtspTimeoutFlag[] = ["-rw_timeout", "-stimeout", "-timeout"];
 const timeoutFlagCache = new Map<string, RtspTimeoutFlag>();
 
-function detectRtspTimeoutFlag(ffmpegPath: string): RtspTimeoutFlag {
-  try {
-    const result = spawnSync(ffmpegPath, ["-hide_banner", "-h", "full"], {
-      encoding: "utf-8",
-      timeout: 7000,
-    });
-    const output = `${result.stdout || ""}\n${result.stderr || ""}`.toLowerCase();
-
-    if (output.includes("-rw_timeout")) {
-      return "-rw_timeout";
-    }
-
-    if (output.includes("-stimeout")) {
-      return "-stimeout";
-    }
-
-    if (output.includes("-timeout")) {
-      return "-timeout";
-    }
-  } catch {
-    // Fallback to legacy timeout option if probing fails.
-  }
-
-  return "-timeout";
+export function resolveRtspTimeoutFlag(ffmpegPath: string): RtspTimeoutFlag {
+  return timeoutFlagCache.get(ffmpegPath) ?? "-rw_timeout";
 }
 
-export function resolveRtspTimeoutFlag(ffmpegPath: string): RtspTimeoutFlag {
-  const cached = timeoutFlagCache.get(ffmpegPath);
-  if (cached) {
-    return cached;
+export function extractUnsupportedRtspTimeoutFlag(line: string): RtspTimeoutFlag | null {
+  const normalized = line.toLowerCase();
+  for (const flag of timeoutFlagOrder) {
+    if (normalized.includes(`option ${flag.slice(1)} not found`)) {
+      return flag;
+    }
   }
+  return null;
+}
 
-  const detected = detectRtspTimeoutFlag(ffmpegPath);
-  timeoutFlagCache.set(ffmpegPath, detected);
-  return detected;
+export function reportUnsupportedRtspTimeoutFlag(ffmpegPath: string, unsupportedFlag: RtspTimeoutFlag): RtspTimeoutFlag {
+  const unsupportedIndex = timeoutFlagOrder.indexOf(unsupportedFlag);
+  const fallback = timeoutFlagOrder[Math.min(timeoutFlagOrder.length - 1, unsupportedIndex + 1)];
+  timeoutFlagCache.set(ffmpegPath, fallback);
+  return fallback;
 }
 
 export function resetRtspTimeoutFlagCacheForTests(): void {
