@@ -138,8 +138,8 @@ export function detectHardwareAcceleration(): HardwareAccelInfo {
 export function generateSnapshotArgs(rtspUrl: string, outputPath: string, settings: Settings): string[] {
   const args: string[] = [];
   const ffmpegPath = process.env.FFMPEG_PATH || settings.ffmpegPath || "ffmpeg";
-  const rtspIoTimeoutUs = Math.max(0, Math.floor((settings.rtspSocketTimeoutMs ?? 10000) * 1000)).toString();
   const rtspTimeoutFlag = resolveRtspTimeoutFlag(ffmpegPath);
+  const rtspIoTimeoutUs = Math.max(0, Math.floor((settings.rtspSocketTimeoutMs ?? 10000) * 1000)).toString();
   const customArgs = parseCustomFFmpegArgs(settings.customFFmpegArgs);
 
   args.push("-rtsp_transport", settings.rtspTransport);

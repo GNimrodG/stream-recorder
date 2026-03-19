@@ -117,10 +117,10 @@ export function mergeRecordingParts(partPaths: string[], finalPath: string): boo
 // Build FFmpeg arguments based on settings
 export function buildFFmpegArgs(rtspUrl: string, outputPath: string, duration: number): string[] {
   const settings = loadSettings();
-  const ffmpegPath = process.env.FFMPEG_PATH || settings.ffmpegPath || "ffmpeg";
   const args: string[] = [];
-  const rtspIoTimeoutUs = Math.max(0, Math.floor((settings.rtspSocketTimeoutMs ?? 10000) * 1000)).toString();
+  const ffmpegPath = process.env.FFMPEG_PATH || settings.ffmpegPath || "ffmpeg";
   const rtspTimeoutFlag = resolveRtspTimeoutFlag(ffmpegPath);
+  const rtspIoTimeoutUs = Math.max(0, Math.floor((settings.rtspSocketTimeoutMs ?? 10000) * 1000)).toString();
 
   // Hardware acceleration input options
   // Only apply hwaccel when re-encoding — if videoCodec is "copy", FFmpeg passes
@@ -205,8 +205,8 @@ const browserCompatibleAudioEncoder = "aac";
 export function buildFFmpegArgsForPreview(rtspUrl: string): string[] {
   const settings = loadSettings();
   const ffmpegPath = process.env.FFMPEG_PATH || settings.ffmpegPath || "ffmpeg";
-  const rtspIoTimeoutUs = Math.max(0, Math.floor((settings.rtspSocketTimeoutMs ?? 10000) * 1000)).toString();
   const rtspTimeoutFlag = resolveRtspTimeoutFlag(ffmpegPath);
+  const rtspIoTimeoutUs = Math.max(0, Math.floor((settings.rtspSocketTimeoutMs ?? 10000) * 1000)).toString();
   const customArgs = parseCustomFFmpegArgs(settings.customFFmpegArgs);
 
   return [

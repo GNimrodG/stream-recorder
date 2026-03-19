@@ -55,9 +55,8 @@ function ViewerPageContent() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { recordings, loading, fetchRecordings } = useRecordings();
-  const [selectedRecording, setSelectedRecording] = useState<RecordingWithStatus | null>(null);
-  const [videoDialogOpen, setVideoDialogOpen] = useState(false);
-  const [liveDialogOpen, setLiveDialogOpen] = useState(false);
+  const [videoRecording, setVideoRecording] = useState<RecordingWithStatus | null>(null);
+  const [liveRecording, setLiveRecording] = useState<RecordingWithStatus | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
@@ -78,13 +77,13 @@ function ViewerPageContent() {
   const [isMuted, setIsMuted] = useState(false);
   const [isLoadingVideo, setIsLoadingVideo] = useState(true);
   const [isVideoError, setIsVideoError] = useState(false);
-  const isLivePlayback = !!selectedRecording && !selectedRecording.outputPath;
+  const lastHandledRecordingIdRef = useRef<string | null>(null);
+  const isLivePlayback = !!videoRecording && !videoRecording.outputPath;
   const isSeekable = Number.isFinite(duration) && duration > 0;
 
   const handleWatchVideo = useCallback((recording: RecordingWithStatus) => {
     setIsLoadingVideo(true);
-    setSelectedRecording(recording);
-    setVideoDialogOpen(true);
+    setVideoRecording(recording);
     setIsPlaying(false);
     setCurrentTime(0);
   }, []);
@@ -92,34 +91,43 @@ function ViewerPageContent() {
   // Handle recordingId from search params
   useEffect(() => {
     const recordingId = searchParams.get("recordingId");
-    if (recordingId && recordings.length > 0 && !videoDialogOpen) {
-      const recording = recordings.find((r) => r.id === recordingId);
-      if (recording && recording.outputPath) {
-        // Use a microtask to defer state updates to avoid synchronous setState in effect
-        queueMicrotask(() => {
-          handleWatchVideo(recording);
-          router.replace(pathname, { scroll: false });
-        });
-      }
+    if (!recordingId) {
+      lastHandledRecordingIdRef.current = null;
+      return;
     }
-  }, [searchParams, recordings, videoDialogOpen, handleWatchVideo, router, pathname]);
+
+    if (recordings.length === 0 || !!videoRecording) {
+      return;
+    }
+
+    if (lastHandledRecordingIdRef.current === recordingId) {
+      return;
+    }
+
+    const recording = recordings.find((r) => r.id === recordingId);
+    if (recording && recording.outputPath) {
+      lastHandledRecordingIdRef.current = recordingId;
+      // Use a microtask to defer state updates to avoid synchronous setState in effect
+      queueMicrotask(() => {
+        handleWatchVideo(recording);
+        router.replace(pathname, { scroll: false });
+      });
+    }
+  }, [searchParams, recordings, videoRecording, handleWatchVideo, router, pathname]);
 
   const handleWatchLive = (recording: RecordingWithStatus) => {
-    setSelectedRecording(recording);
-    setLiveDialogOpen(true);
+    setLiveRecording(recording);
   };
 
   const handleCloseVideoDialog = () => {
-    setVideoDialogOpen(false);
-    setSelectedRecording(null);
+    setVideoRecording(null);
     if (videoRef.current) {
       videoRef.current.pause();
     }
   };
 
   const handleCloseLiveDialog = () => {
-    setLiveDialogOpen(false);
-    setSelectedRecording(null);
+    setLiveRecording(null);
   };
 
   const handlePlayPause = () => {
@@ -370,7 +378,7 @@ function ViewerPageContent() {
 
       {/* Video Player Dialog */}
       <Dialog
-        open={videoDialogOpen}
+        open={!!videoRecording}
         onClose={handleCloseVideoDialog}
         maxWidth="lg"
         fullWidth
@@ -387,17 +395,17 @@ function ViewerPageContent() {
             color: "white",
           }}
           component="div">
-          <Typography variant="h6">{selectedRecording?.name}</Typography>
+          <Typography variant="h6">{videoRecording?.name}</Typography>
           <IconButton onClick={handleCloseVideoDialog} sx={{ color: "white" }}>
             <CloseIcon />
           </IconButton>
         </DialogTitle>
         <DialogContent sx={{ p: 0 }}>
-          {selectedRecording && (
+          {videoRecording && (
             <Box sx={{ position: "relative", bgcolor: "black" }}>
               <video
                 ref={videoRef}
-                src={`/api/recordings/${selectedRecording.id}/stream`}
+                src={`/api/recordings/${videoRecording.id}/stream`}
                 style={{ width: "100%", maxHeight: "70vh" }}
                 onTimeUpdate={handleTimeUpdate}
                 onLoadedMetadata={handleLoadedMetadata}
@@ -497,7 +505,7 @@ function ViewerPageContent() {
 
                   <IconButton
                     component="a"
-                    href={`/api/recordings/${selectedRecording.id}/download`}
+                    href={`/api/recordings/${videoRecording.id}/download`}
                     download
                     sx={{ color: "white" }}>
                     <DownloadIcon />
@@ -510,11 +518,7 @@ function ViewerPageContent() {
       </Dialog>
 
       {/* Live Preview Dialog */}
-      <RecordingPreviewDialog
-        open={liveDialogOpen}
-        onCloseAction={handleCloseLiveDialog}
-        recording={selectedRecording}
-      />
+      <RecordingPreviewDialog open={!!liveRecording} onCloseAction={handleCloseLiveDialog} recording={liveRecording} />
 
       {/* Snackbar */}
       <Snackbar open={snackbar.open} autoHideDuration={4000} onClose={() => setSnackbar({ ...snackbar, open: false })}>

@@ -31,6 +31,7 @@
 - Tests are Vitest-based and currently focus on stream probing and manager behavior (`test/stream.test.ts`, `test/RecordingManager.test.ts`) with heavy module mocking.
 - Docker runtime expects GPU-oriented image choices (`Dockerfile`, `docker-compose.yml`), including NVIDIA runtime and static FFmpeg with NVENC-enabled build.
 - Logs are part of normal debugging: per-recording logs in `logs/recording_<id>.log` are exposed by `/api/recordings/[id]/logs`.
+- To run tests use the command `yarn test run` so it doesn't watch for file changes.
 
 ## Conventions to preserve when editing
 - Keep API handlers thin; put business logic in `src/lib/*` and shared types in `src/types/*`.

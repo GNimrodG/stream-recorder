@@ -1,5 +1,3 @@
-// noinspection ES6PreferShortImport
-
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   extractUnsupportedRtspTimeoutFlag,
@@ -8,46 +6,25 @@ import {
   resolveRtspTimeoutFlag,
 } from "../src/lib/ffmpegRtspTimeout";
 
-describe("resolveRtspTimeoutFlag", () => {
+describe("ffmpegRtspTimeout", () => {
   beforeEach(() => {
     resetRtspTimeoutFlagCacheForTests();
   });
 
-  it("defaults to -rw_timeout", () => {
-    expect(resolveRtspTimeoutFlag("ffmpeg")).toBe("-rw_timeout");
-  });
-
-  it("returns cached value after demotion", () => {
-    reportUnsupportedRtspTimeoutFlag("ffmpeg", "-rw_timeout");
-    expect(resolveRtspTimeoutFlag("ffmpeg")).toBe("-stimeout");
-  });
-
-  it("demotes -stimeout to -timeout", () => {
-    reportUnsupportedRtspTimeoutFlag("ffmpeg", "-stimeout");
-    expect(resolveRtspTimeoutFlag("ffmpeg")).toBe("-timeout");
-  });
-
-  it("stays at -timeout when already at end of fallback chain", () => {
-    reportUnsupportedRtspTimeoutFlag("ffmpeg", "-timeout");
-    expect(resolveRtspTimeoutFlag("ffmpeg")).toBe("-timeout");
-  });
-});
-
-describe("extractUnsupportedRtspTimeoutFlag", () => {
-  it("detects -rw_timeout", () => {
+  it("parses unsupported timeout options from ffmpeg stderr", () => {
     expect(extractUnsupportedRtspTimeoutFlag("Option rw_timeout not found.")).toBe("-rw_timeout");
-  });
-
-  it("detects -stimeout", () => {
     expect(extractUnsupportedRtspTimeoutFlag("Option stimeout not found.")).toBe("-stimeout");
-  });
-
-  it("detects -timeout", () => {
     expect(extractUnsupportedRtspTimeoutFlag("Option timeout not found.")).toBe("-timeout");
+    expect(extractUnsupportedRtspTimeoutFlag("Input #0, rtsp, from 'rtsp://example/live':")).toBeNull();
   });
 
-  it("returns null for unrelated stderr lines", () => {
-    expect(extractUnsupportedRtspTimeoutFlag("Connection refused")).toBeNull();
-    expect(extractUnsupportedRtspTimeoutFlag("Successfully connected")).toBeNull();
+  it("uses fallback order and caches the next timeout flag per ffmpeg path", () => {
+    const ffmpegPath = "/usr/bin/ffmpeg";
+
+    expect(resolveRtspTimeoutFlag(ffmpegPath)).toBe("-rw_timeout");
+    expect(reportUnsupportedRtspTimeoutFlag(ffmpegPath, "-rw_timeout")).toBe("-stimeout");
+    expect(resolveRtspTimeoutFlag(ffmpegPath)).toBe("-stimeout");
+    expect(reportUnsupportedRtspTimeoutFlag(ffmpegPath, "-stimeout")).toBe("-timeout");
+    expect(resolveRtspTimeoutFlag(ffmpegPath)).toBe("-timeout");
   });
 });

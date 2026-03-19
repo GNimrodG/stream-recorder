@@ -3,6 +3,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Settings } from "../src/types/settings";
 
+const { resolveRtspTimeoutFlagMock } = vi.hoisted(() => ({
+  resolveRtspTimeoutFlagMock: vi.fn(() => "-rw_timeout" as const),
+}));
+
 const mockedSettings: Settings = {
   ffmpegPath: "ffmpeg",
   hardwareAcceleration: "none",
@@ -34,29 +38,32 @@ vi.mock("@/lib/ffmpegArgs", () => ({
 }));
 
 vi.mock("@/lib/ffmpegRtspTimeout", () => ({
-  resolveRtspTimeoutFlag: () => "-timeout",
+  resolveRtspTimeoutFlag: resolveRtspTimeoutFlagMock,
 }));
 
 describe("FFmpeg timeout arguments", () => {
   beforeEach(() => {
     vi.resetModules();
+    resolveRtspTimeoutFlagMock.mockClear();
   });
 
-  it("uses resolved timeout flag for recording args", async () => {
+  it("uses -rw_timeout for recording args", async () => {
     const { buildFFmpegArgs } = await import("../src/lib/ffmpeg");
     const args = buildFFmpegArgs("rtsp://example/live", "out.mp4", 60);
 
-    expect(args).toContain("-timeout");
-    expect(args[args.indexOf("-timeout") + 1]).toBe("1234000");
-    expect(args).not.toContain("-rw_timeout");
+    expect(args).toContain("-rw_timeout");
+    expect(args[args.indexOf("-rw_timeout") + 1]).toBe("1234000");
+    expect(args).not.toContain("-timeout");
+    expect(resolveRtspTimeoutFlagMock).toHaveBeenCalledWith("ffmpeg");
   });
 
-  it("uses resolved timeout flag for preview args", async () => {
+  it("uses -rw_timeout for preview args", async () => {
     const { buildFFmpegArgsForPreview } = await import("../src/lib/ffmpeg");
     const args = buildFFmpegArgsForPreview("rtsp://example/live");
 
-    expect(args).toContain("-timeout");
-    expect(args[args.indexOf("-timeout") + 1]).toBe("1234000");
-    expect(args).not.toContain("-rw_timeout");
+    expect(args).toContain("-rw_timeout");
+    expect(args[args.indexOf("-rw_timeout") + 1]).toBe("1234000");
+    expect(args).not.toContain("-timeout");
+    expect(resolveRtspTimeoutFlagMock).toHaveBeenCalledWith("ffmpeg");
   });
 });

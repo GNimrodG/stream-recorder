@@ -92,9 +92,9 @@ export default function RecordingsPageClient({
   const [loading, setLoading] = useState(false);
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingRecording, setEditingRecording] = useState<RecordingWithStatus | null>(null);
   const [previewRecording, setPreviewRecording] = useState<RecordingWithStatus | null>(null);
-  const [selectedRecording, setSelectedRecording] = useState<RecordingWithStatus | null>(null);
+  const [logsRecording, setLogsRecording] = useState<RecordingWithStatus | null>(null);
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
     message: string;
@@ -266,15 +266,14 @@ export default function RecordingsPageClient({
   };
 
   const handleUpdateRecording = async () => {
-    if (!selectedRecording) return;
+    if (!editingRecording) return;
 
     try {
-      const response = await fetch(`/api/recordings/${selectedRecording.id}`, {
+      const response = await fetch(`/api/recordings/${editingRecording.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: formData.name,
-          rtspUrl: formData.rtspUrl,
           startTime: formData.startTime,
           duration: formData.duration,
         }),
@@ -285,8 +284,7 @@ export default function RecordingsPageClient({
         throw new Error(error.error || "Failed to update recording");
       }
 
-      setEditDialogOpen(false);
-      setSelectedRecording(null);
+      setEditingRecording(null);
       setSnackbar({
         open: true,
         message: "Recording updated successfully!",
@@ -404,13 +402,13 @@ export default function RecordingsPageClient({
   };
 
   const handleEditClick = (recording: RecordingWithStatus) => {
+    setEditingRecording(recording);
     setFormData({
       name: recording.name,
       rtspUrl: recording.rtspUrl,
       startTime: recording.startTime,
       duration: recording.duration,
     });
-    setEditDialogOpen(true);
   };
 
   const handlePreviewClick = (recording: RecordingWithStatus) => {
@@ -601,7 +599,7 @@ export default function RecordingsPageClient({
                           </Tooltip>
                         )}
                         <Tooltip title="View Logs">
-                          <IconButton color="inherit" size="small" onClick={() => setSelectedRecording(recording)}>
+                          <IconButton color="inherit" size="small" onClick={() => setLogsRecording(recording)}>
                             <ArticleIcon />
                           </IconButton>
                         </Tooltip>
@@ -715,8 +713,8 @@ export default function RecordingsPageClient({
       />
 
       <RecordingDialog
-        open={editDialogOpen}
-        onClose={() => setEditDialogOpen(false)}
+        open={!!editingRecording}
+        onClose={() => setEditingRecording(null)}
         onSubmit={handleUpdateRecording}
         formData={formData}
         onFormChange={setFormData}
@@ -731,12 +729,12 @@ export default function RecordingsPageClient({
       />
 
       <RecordingLogsDialog
-        open={!!selectedRecording}
-        onCloseAction={() => setSelectedRecording(null)}
-        recording={selectedRecording}
+        open={!!logsRecording}
+        onCloseAction={() => setLogsRecording(null)}
+        recording={logsRecording}
       />
 
-      <Snackbar open={snackbar.open} autoHideDuration={4000} onClose={() => setSnackbar({ ...snackbar, open: false })}>
+      <Snackbar open={snackbar.open} autoHideDuration={6000} onClose={() => setSnackbar({ ...snackbar, open: false })}>
         <Alert severity={snackbar.severity} onClose={() => setSnackbar({ ...snackbar, open: false })}>
           {snackbar.message}
         </Alert>
