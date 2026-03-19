@@ -81,6 +81,8 @@ describe("RecordingsPageClient UI", () => {
     );
 
     await user.click(getActionButtonByIcon("EditIcon"));
+    expect(await screen.findByRole("heading", { name: "Edit Recording" })).toBeInTheDocument();
+
     await user.click(screen.getByRole("button", { name: "Update Recording" }));
 
     await waitFor(() => {
@@ -88,5 +90,9 @@ describe("RecordingsPageClient UI", () => {
     });
 
     expect(await screen.findByText("Recording updated successfully!")).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(screen.queryByRole("heading", { name: "Edit Recording" })).not.toBeInTheDocument();
+    });
   });
 });

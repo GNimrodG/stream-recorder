@@ -20,7 +20,7 @@ import {
   TablePagination,
   TableRow,
   Tooltip,
-  Typography,
+  Typography
 } from "@mui/material";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
@@ -41,7 +41,7 @@ import {
   CreateRecordingDto,
   RecordingFilterStatus,
   RecordingPaginationMeta,
-  RecordingWithStatus,
+  RecordingWithStatus
 } from "@/types/recording";
 import RecordingDialog from "@/components/dialogs/RecordingDialog";
 import RecordingLogsDialog from "@/components/dialogs/RecordingLogsDialog";
@@ -75,6 +75,15 @@ type Props = {
   initialRtspUrl?: string;
 };
 
+type RecordingDialogState =
+  | {
+      mode: "create";
+    }
+  | {
+      mode: "edit";
+      recording: RecordingWithStatus;
+    };
+
 export default function RecordingsPageClient({
   initialRecordings,
   initialPagination,
@@ -91,8 +100,7 @@ export default function RecordingsPageClient({
   const [filterStatus, setFilterStatus] = useState<RecordingFilterStatus>(initialStatus);
   const [loading, setLoading] = useState(false);
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingRecording, setEditingRecording] = useState<RecordingWithStatus | null>(null);
+  const [recordingDialogState, setRecordingDialogState] = useState<RecordingDialogState | null>(null);
   const [previewRecording, setPreviewRecording] = useState<RecordingWithStatus | null>(null);
   const [logsRecording, setLogsRecording] = useState<RecordingWithStatus | null>(null);
   const [snackbar, setSnackbar] = useState<{
@@ -111,6 +119,8 @@ export default function RecordingsPageClient({
     startTime: new Date().toISOString(),
     duration: 3600,
   });
+
+  const isEditDialog = recordingDialogState?.mode === "edit";
 
   const replaceQuery = useCallback(
     (next: { page: number; pageSize: number; status: RecordingFilterStatus }, clearPrefill = false) => {
@@ -182,7 +192,7 @@ export default function RecordingsPageClient({
       name: initialName || prev.name,
       rtspUrl: initialRtspUrl || prev.rtspUrl,
     }));
-    setDialogOpen(true);
+    setRecordingDialogState({ mode: "create" });
     replaceQuery(
       {
         page: pagination.page,
@@ -230,6 +240,20 @@ export default function RecordingsPageClient({
     [fetchRecordings, replaceQuery],
   );
 
+  const closeRecordingDialog = useCallback(() => {
+    setRecordingDialogState(null);
+  }, []);
+
+  const openCreateDialog = useCallback(() => {
+    setFormData({
+      name: "",
+      rtspUrl: "",
+      startTime: new Date().toISOString(),
+      duration: 3600,
+    });
+    setRecordingDialogState({ mode: "create" });
+  }, []);
+
   const handleCreateRecording = async () => {
     try {
       const response = await fetch("/api/recordings", {
@@ -243,7 +267,7 @@ export default function RecordingsPageClient({
         throw new Error(error.error || "Failed to create recording");
       }
 
-      setDialogOpen(false);
+      closeRecordingDialog();
       setFormData({
         name: "",
         rtspUrl: "",
@@ -266,10 +290,12 @@ export default function RecordingsPageClient({
   };
 
   const handleUpdateRecording = async () => {
-    if (!editingRecording) return;
+    if (!recordingDialogState || recordingDialogState.mode !== "edit") return;
+
+    const editingRecordingId = recordingDialogState.recording.id;
 
     try {
-      const response = await fetch(`/api/recordings/${editingRecording.id}`, {
+      const response = await fetch(`/api/recordings/${editingRecordingId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -284,7 +310,7 @@ export default function RecordingsPageClient({
         throw new Error(error.error || "Failed to update recording");
       }
 
-      setEditingRecording(null);
+      closeRecordingDialog();
       setSnackbar({
         open: true,
         message: "Recording updated successfully!",
@@ -402,13 +428,13 @@ export default function RecordingsPageClient({
   };
 
   const handleEditClick = (recording: RecordingWithStatus) => {
-    setEditingRecording(recording);
     setFormData({
       name: recording.name,
       rtspUrl: recording.rtspUrl,
       startTime: recording.startTime,
       duration: recording.duration,
     });
+    setRecordingDialogState({ mode: "edit", recording });
   };
 
   const handlePreviewClick = (recording: RecordingWithStatus) => {
@@ -465,18 +491,7 @@ export default function RecordingsPageClient({
           <Typography variant="h6" sx={{ fontWeight: "bold" }}>
             All Recordings ({pagination.total})
           </Typography>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => {
-              setFormData({
-                name: "",
-                rtspUrl: "",
-                startTime: new Date().toISOString(),
-                duration: 3600,
-              });
-              setDialogOpen(true);
-            }}>
+          <Button variant="contained" startIcon={<AddIcon />} onClick={openCreateDialog}>
             New Recording
           </Button>
         </Box>
@@ -703,23 +718,13 @@ export default function RecordingsPageClient({
       </Paper>
 
       <RecordingDialog
-        open={dialogOpen}
-        onClose={() => setDialogOpen(false)}
-        onSubmit={handleCreateRecording}
+        open={!!recordingDialogState}
+        onClose={closeRecordingDialog}
+        onSubmit={isEditDialog ? handleUpdateRecording : handleCreateRecording}
         formData={formData}
         onFormChange={setFormData}
-        title="Schedule New Recording"
-        submitLabel="Schedule Recording"
-      />
-
-      <RecordingDialog
-        open={!!editingRecording}
-        onClose={() => setEditingRecording(null)}
-        onSubmit={handleUpdateRecording}
-        formData={formData}
-        onFormChange={setFormData}
-        title="Edit Recording"
-        submitLabel="Update Recording"
+        title={isEditDialog ? "Edit Recording" : "Schedule New Recording"}
+        submitLabel={isEditDialog ? "Update Recording" : "Schedule Recording"}
       />
 
       <RecordingPreviewDialog
