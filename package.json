@@ -21,7 +21,7 @@
     "@mui/x-date-pickers": "^8.27.0",
     "date-fns": "^4.1.0",
     "lru-cache": "^11.2.6",
-    "next": "16.1.6",
+    "next": "16.1.7",
     "next-auth": "^4.24.13",
     "react": "19.2.3",
     "react-dom": "19.2.3"
