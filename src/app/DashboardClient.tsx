@@ -20,7 +20,7 @@ import {
   TableHead,
   TableRow,
   Tooltip,
-  Typography,
+  Typography
 } from "@mui/material";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
@@ -37,6 +37,8 @@ import { formatDate, formatDuration, getActualDuration } from "@/utils";
 import StatusDisplay from "@/components/StatusDisplay";
 import RecordingTimeline, { RecordingTimelineHandle } from "@/components/dashboard/RecordingTimeline";
 import { STATUS_COLORS } from "@/theme";
+import ArticleIcon from "@mui/icons-material/Article";
+import RecordingLogsDialog from "@/components/dialogs/RecordingLogsDialog";
 
 type Props = {
   initialRecordings: RecordingWithStatus[];
@@ -50,6 +52,7 @@ export default function DashboardClient({ initialRecordings, initialStats }: Pro
   const [loading, setLoading] = useState(false);
   const [recordingsLoading, setRecordingsLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [logsRecording, setLogsRecording] = useState<RecordingWithStatus | null>(null);
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
     message: string;
@@ -413,6 +416,11 @@ export default function DashboardClient({ initialRecordings, initialStats }: Pro
                               </Tooltip>
                             </>
                           )}
+                          <Tooltip title="View Logs">
+                            <IconButton color="inherit" size="small" onClick={() => setLogsRecording(recording)}>
+                              <ArticleIcon />
+                            </IconButton>
+                          </Tooltip>
                           {recording.status === "scheduled" && (
                             <Tooltip title="Start Now">
                               <IconButton color="success" onClick={() => handleStartRecording(recording.id)}>
@@ -450,6 +458,12 @@ export default function DashboardClient({ initialRecordings, initialStats }: Pro
         onFormChange={setFormData}
         title="Schedule New Recording"
         submitLabel="Schedule Recording"
+      />
+
+      <RecordingLogsDialog
+        open={!!logsRecording}
+        onCloseAction={() => setLogsRecording(null)}
+        recording={logsRecording}
       />
 
       <Snackbar open={snackbar.open} autoHideDuration={4000} onClose={() => setSnackbar({ ...snackbar, open: false })}>
