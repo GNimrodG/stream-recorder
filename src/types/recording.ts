@@ -22,6 +22,7 @@ export interface Recording {
   completedAt?: string; // ISO date string - when recording completed
   endedAt?: string; // ISO date string - when the actual recording ended (stopped or completed)
   errorMessage?: string;
+  ignoreDuration?: boolean;
 }
 
 export interface RecordingWithStatus extends Recording {
@@ -39,13 +40,7 @@ export interface CreateRecordingDto {
   rtspUrl: string;
   startTime: string;
   duration: number;
-}
-
-export interface UpdateRecordingDto {
-  name?: string;
-  rtspUrl?: string;
-  startTime?: string;
-  duration?: number;
+  ignoreDuration?: boolean;
 }
 
 export type RecordingStats = {

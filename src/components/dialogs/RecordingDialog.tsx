@@ -3,6 +3,7 @@
 import {
   Box,
   Button,
+  Checkbox,
   Chip,
   Dialog,
   DialogActions,
@@ -10,6 +11,7 @@ import {
   DialogTitle,
   Divider,
   FormControl,
+  FormControlLabel,
   InputLabel,
   MenuItem,
   Select,
@@ -21,6 +23,7 @@ import { CreateRecordingDto } from "@/types/recording";
 import { SavedStream } from "@/types/stream";
 import DurationInput from "@/components/inputs/DurationInput";
 import { useCallback, useEffect, useState } from "react";
+import FormHelperText from "@mui/material/FormHelperText";
 
 interface RecordingDialogProps {
   open: boolean;
@@ -153,6 +156,21 @@ export default function RecordingDialog({
 
           {/* Duration with presets */}
           <DurationInput value={formData.duration} onChange={(duration) => onFormChange({ ...formData, duration })} />
+
+          <FormControl fullWidth>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={formData.ignoreDuration || false}
+                  onChange={(e) => onFormChange({ ...formData, ignoreDuration: e.target.checked })}
+                />
+              }
+              label="Ignore duration?"
+            />
+            <FormHelperText>
+              If checked, the recording will continue until the stream ends or manually stopped.
+            </FormHelperText>
+          </FormControl>
         </Box>
       </DialogContent>
       <DialogActions>

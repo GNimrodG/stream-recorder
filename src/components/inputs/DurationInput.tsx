@@ -16,12 +16,11 @@ const DurationInput: FC<DurationInputProps> = ({ value, onChange }) => {
       </Typography>
       <Box sx={{ display: "flex", gap: 1, mb: 1, flexWrap: "wrap" }}>
         {[
-          { label: "5 min", value: 300 },
           { label: "15 min", value: 900 },
           { label: "30 min", value: 1800 },
           { label: "1 hour", value: 3600 },
-          { label: "2 hours", value: 7200 },
           { label: "4 hours", value: 14400 },
+          { label: "7h 10m", value: 25800 },
           { label: "8 hours", value: 28800 },
           { label: "24 hours", value: 86400 },
         ].map((preset) => (

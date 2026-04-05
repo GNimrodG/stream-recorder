@@ -183,7 +183,7 @@ export function buildFFmpegArgs(rtspUrl: string, outputPath: string, duration: n
   args.push("-async", "1");
 
   // Duration
-  args.push("-t", duration.toString());
+  if (duration > -1) args.push("-t", duration.toString());
 
   // Output format specific options
   if (settings.outputFormat === "mp4") {

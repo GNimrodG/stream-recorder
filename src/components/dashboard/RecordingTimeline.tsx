@@ -51,6 +51,7 @@ const dateFormatter = new Intl.DateTimeFormat(undefined, {
   month: "short",
   day: "numeric",
   year: "numeric",
+  weekday: "long",
 });
 
 const timeFormatter = new Intl.DateTimeFormat(undefined, {
@@ -60,6 +61,19 @@ const timeFormatter = new Intl.DateTimeFormat(undefined, {
 
 const formatDayLabel = (timestampMs: number): string => dateFormatter.format(new Date(timestampMs));
 const formatTickLabel = (timestampMs: number): string => timeFormatter.format(new Date(timestampMs));
+
+const getLocalDayStartMs = (timestampMs: number): number => {
+  const date = new Date(timestampMs);
+  date.setHours(0, 0, 0, 0);
+  return date.getTime();
+};
+
+const getNextLocalDayStartMs = (dayStartMs: number): number => {
+  const date = new Date(dayStartMs);
+  date.setDate(date.getDate() + 1);
+  date.setHours(0, 0, 0, 0);
+  return date.getTime();
+};
 
 const createTimelineModel = (recordings: RecordingWithStatus[]) => {
   if (!recordings.length) return null;
@@ -99,15 +113,21 @@ const createTimelineModel = (recordings: RecordingWithStatus[]) => {
 
   // Build day marks
   const dayMarks: { fromIndex: number; toIndex: number; label: string }[] = [];
-  let currentDayStartMin = Math.floor(minStartMin / MS_PER_DAY) * MS_PER_DAY;
+  let currentDayStartMin = getLocalDayStartMs(minStartMin);
   while (currentDayStartMin < maxEndMin) {
-    const index = Math.floor((currentDayStartMin - minStartMin) / MS_PER_HOUR) - 1;
-    dayMarks.push({
-      fromIndex: Math.max(0, index),
-      toIndex: index + 24,
-      label: formatDayLabel(currentDayStartMin),
-    });
-    currentDayStartMin += MS_PER_DAY;
+    const nextDayStartMin = getNextLocalDayStartMs(currentDayStartMin);
+    const fromIndex = Math.max(0, Math.floor((currentDayStartMin - minStartMin) / MS_PER_HOUR));
+    const toIndex = Math.min(totalColumns - 1, Math.ceil((nextDayStartMin - minStartMin) / MS_PER_HOUR));
+
+    if (toIndex > fromIndex) {
+      dayMarks.push({
+        fromIndex,
+        toIndex,
+        label: formatDayLabel(currentDayStartMin),
+      });
+    }
+
+    currentDayStartMin = nextDayStartMin;
   }
 
   // Build hour marks

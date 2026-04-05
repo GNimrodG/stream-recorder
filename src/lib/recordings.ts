@@ -217,7 +217,7 @@ export function createRecording(data: {
   recordings.push(recording);
   saveRecordings(recordings);
 
-  new RecordingManager(recording.id, recording.name, recording.rtspUrl, recording.startTime, recording.duration);
+  createRecordingManager(recording);
 
   return recording;
 }
@@ -342,5 +342,12 @@ export function ensureRecordingsInitialized(): void {
 }
 
 function createRecordingManager(recording: Recording): RecordingManager {
-  return new RecordingManager(recording.id, recording.name, recording.rtspUrl, recording.startTime, recording.duration);
+  return new RecordingManager(
+    recording.id,
+    recording.name,
+    recording.rtspUrl,
+    recording.startTime,
+    recording.duration,
+    recording.ignoreDuration,
+  );
 }

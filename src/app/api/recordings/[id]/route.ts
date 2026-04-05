@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { deleteRecording, getRecordingWithStatsById, updateRecording } from "@/lib/recordings";
-import { UpdateRecordingDto } from "@/types/recording";
+import { Recording } from "@/types/recording";
 import { RecordingManager } from "@/lib/RecordingManager";
 import { ensureInitialized } from "@/app/api/recordings/route";
 
@@ -21,7 +21,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const { id } = await params;
 
   try {
-    const body: UpdateRecordingDto = await request.json();
+    const body: Partial<Recording> = await request.json();
     const recording = updateRecording(id, body);
 
     if (!recording) {

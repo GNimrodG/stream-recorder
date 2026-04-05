@@ -92,6 +92,7 @@ export class RecordingManager {
    * @param url - RTSP URL of the stream to record
    * @param startTime - ISO string representing when to start recording
    * @param duration - Duration to record in seconds
+   * @param ignoreDuration - Doesn't pass the -t argument to ffmpeg if true
    */
   constructor(
     private readonly id: string,
@@ -99,6 +100,7 @@ export class RecordingManager {
     private url: string,
     private startTime: string,
     private duration: number,
+    private ignoreDuration: boolean = false,
   ) {
     if (!id || !name || !url || !startTime || !duration) {
       throw new Error("Missing required parameters for RecordingManager");
@@ -231,7 +233,13 @@ export class RecordingManager {
     this.ignoreStreamStatus = false;
   }
 
-  public update(data: { name?: string; url?: string; startTime?: string; duration?: number }) {
+  public update(data: {
+    name?: string;
+    url?: string;
+    startTime?: string;
+    duration?: number;
+    ignoreDuration?: boolean;
+  }) {
     if (this.hasStarted()) {
       throw new Error("Cannot update recording because it has already started.");
     }
@@ -283,6 +291,10 @@ export class RecordingManager {
           new Date(this.startTime).getTime() - new Date().getTime(),
         );
       }
+    }
+
+    if (data.ignoreDuration !== undefined) {
+      this.ignoreDuration = data.ignoreDuration;
     }
   }
 
@@ -412,7 +424,7 @@ export class RecordingManager {
     }
 
     const duration = this.getRemainingDuration();
-    const ffmpegArgs = buildFFmpegArgs(this.url, outputPath, duration);
+    const ffmpegArgs = buildFFmpegArgs(this.url, outputPath, this.ignoreDuration ? -1 : duration);
     let unsupportedTimeoutFlagDetected = false;
 
     this.log(`Running FFMpeg with params: ${ffmpegArgs.join(" ")}`);
