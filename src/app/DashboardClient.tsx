@@ -20,7 +20,7 @@ import {
   TableHead,
   TableRow,
   Tooltip,
-  Typography
+  Typography,
 } from "@mui/material";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
@@ -36,6 +36,7 @@ import RecordingDialog from "@/components/dialogs/RecordingDialog";
 import { formatDate, formatDuration, getActualDuration } from "@/utils";
 import StatusDisplay from "@/components/StatusDisplay";
 import RecordingTimeline, { RecordingTimelineHandle } from "@/components/dashboard/RecordingTimeline";
+import TimelineActionPair from "@/components/dashboard/TimelineActionPair";
 import { STATUS_COLORS } from "@/theme";
 import ArticleIcon from "@mui/icons-material/Article";
 import RecordingLogsDialog from "@/components/dialogs/RecordingLogsDialog";
@@ -53,6 +54,7 @@ export default function DashboardClient({ initialRecordings, initialStats }: Pro
   const [recordingsLoading, setRecordingsLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [logsRecording, setLogsRecording] = useState<RecordingWithStatus | null>(null);
+  const [currentTime, setCurrentTime] = useState(() => new Date().toISOString());
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
     message: string;
@@ -122,6 +124,15 @@ export default function DashboardClient({ initialRecordings, initialStats }: Pro
     const interval = setInterval(() => fetchAll(false), 10000);
     return () => clearInterval(interval);
   }, [fetchAll]);
+
+  useEffect(() => {
+    const updateCurrentTime = () => setCurrentTime(new Date().toISOString());
+
+    updateCurrentTime();
+    const intervalId = window.setInterval(updateCurrentTime, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   const handleCreateRecording = async () => {
     try {
@@ -237,6 +248,13 @@ export default function DashboardClient({ initialRecordings, initialStats }: Pro
     [recordings],
   );
 
+  const nextRecording = useMemo(() => {
+    const now = new Date();
+    return recordings
+      .toSorted((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
+      .find((rec) => new Date(rec.startTime) > now);
+  }, [recordings]);
+
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
       <Stack spacing={3} sx={{ minWidth: 0 }}>
@@ -300,21 +318,47 @@ export default function DashboardClient({ initialRecordings, initialStats }: Pro
         </Grid>
 
         <Paper sx={{ p: 3 }}>
-          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-            <Typography variant="h6" sx={{ fontWeight: "bold" }}>
-              Recording Timeline
-            </Typography>
-            <Stack direction="row" spacing={1}>
-              <Tooltip title="Scroll to current time">
-                <Button onClick={() => timelineRef.current?.scrollToCurrentTime()} color="error">
-                  Now
-                </Button>
-              </Tooltip>
-              <Tooltip title="Next recording">
-                <Button onClick={() => timelineRef.current?.scrollToNextRecording()} color="info">
-                  Next
-                </Button>
-              </Tooltip>
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            justifyContent="space-between"
+            alignItems={{ xs: "stretch", sm: "center" }}
+            spacing={1.5}
+            sx={{ mb: 2 }}>
+            <Stack spacing={1} sx={{ minWidth: 0 }} direction="row" alignItems="center">
+              <Typography variant="h6" sx={{ fontWeight: "bold" }}>
+                Recording Timeline
+              </Typography>
+            </Stack>
+            <Stack
+              direction={{ xs: "column", md: "row" }}
+              spacing={1}
+              flexWrap="wrap"
+              justifyContent={{ xs: "center", sm: "flex-end" }}
+              alignContent="center">
+              <TimelineActionPair
+                buttonLabel="Now"
+                buttonColor="error"
+                onClickAction={() => timelineRef.current?.scrollToCurrentTime()}>
+                <Typography
+                  variant="body2"
+                  sx={{ fontWeight: 600, color: "text.primary", fontFamily: "var(--font-geist-mono)" }}
+                  noWrap>
+                  {formatDate(currentTime)}
+                </Typography>
+              </TimelineActionPair>
+              {nextRecording && (
+                <TimelineActionPair
+                  buttonLabel="Next"
+                  buttonColor="info"
+                  onClickAction={() => timelineRef.current?.scrollToNextRecording()}>
+                  <Typography variant="body2" sx={{ fontWeight: 600, color: "text.primary" }} noWrap>
+                    {nextRecording.name}
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: "text.secondary", fontFamily: "var(--font-geist-mono)" }}>
+                    {formatDate(nextRecording.startTime)}
+                  </Typography>
+                </TimelineActionPair>
+              )}
             </Stack>
           </Stack>
 

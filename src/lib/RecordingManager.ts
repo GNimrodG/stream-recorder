@@ -156,18 +156,28 @@ export class RecordingManager {
 
     this.log(`Initialized recording manager for stream "${this.name}" with URL: ${this.url}`);
 
-    if (new Date(this.startTime) <= new Date()) {
+    const startDate = new Date(this.startTime);
+
+    if (startDate <= new Date()) {
+      // check if time already elapsed
+      if (this.getRemainingDuration() <= 0) {
+        this.log("Start time and duration have already elapsed, marking recording as failed.");
+        this.status = "failed";
+        this.finish(
+          "Recording duration has already elapsed before it could start.",
+          new Date(startDate.getTime() + this.duration * 1000),
+        );
+        return;
+      }
+
       this.log("Start time is in the past, starting recording immediately.");
       this.start();
     } else {
       this.log(
-        `Recording scheduled to start at ${this.startTime} (in ${Math.round((new Date(this.startTime).getTime() - new Date().getTime()) / 1000)} seconds)`,
+        `Recording scheduled to start at ${this.startTime} (in ${Math.round((startDate.getTime() - new Date().getTime()) / 1000)} seconds)`,
       );
 
-      this.scheduledStartTimeout = setTimeout(
-        () => this.start(),
-        new Date(this.startTime).getTime() - new Date().getTime(),
-      );
+      this.scheduledStartTimeout = setTimeout(() => this.start(), startDate.getTime() - new Date().getTime());
     }
 
     RecordingManager.instances.set(this.id, this);
@@ -570,7 +580,7 @@ export class RecordingManager {
     );
   }
 
-  private finish(errorMessage?: string) {
+  private finish(errorMessage?: string, completedAt?: Date) {
     if (!this.abortController.signal.aborted) {
       this.abortController.abort();
     }
@@ -612,7 +622,7 @@ export class RecordingManager {
     recording.outputPath = fs.existsSync(this.FINAL_FILE_PATH) ? this.FINAL_FILE_PATH : undefined;
     recording.errorMessage = errorMessage;
     recording.updatedAt = new Date().toISOString();
-    recording.completedAt = new Date().toISOString();
+    recording.completedAt = completedAt?.toISOString() || new Date().toISOString();
     recording.endedAt = this.recordingEndedAt;
 
     saveRecordings(recordings);

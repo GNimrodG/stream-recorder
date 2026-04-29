@@ -95,7 +95,7 @@ const createTimelineModel = (recordings: RecordingWithStatus[]) => {
   if (!points.length) return null;
 
   // Calculate timeline bounds
-  let minStartMin = Infinity;
+  let minStartMin = Math.floor(Date.now() / MS_PER_DAY) * MS_PER_DAY;
   let maxEndMin = Math.ceil(Date.now() / MS_PER_DAY) * MS_PER_DAY;
   for (const point of points) {
     minStartMin = Math.min(minStartMin, point.startMin);

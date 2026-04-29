@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AppRouterCacheProvider } from "@mui/material-nextjs/v15-appRouter";
 import { ThemeProvider } from "@mui/material/styles";
@@ -21,6 +21,12 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Stream Recorder Dashboard",
   description: "Stream Recorder Application",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  colorScheme: "dark",
 };
 
 export default function RootLayout({
