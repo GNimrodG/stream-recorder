@@ -198,6 +198,7 @@ export function createRecording(data: {
   duration: number;
   sourceStreamId?: string;
   autoStopWhenStreamOffline?: boolean;
+  ignoreDuration?: boolean;
 }): Recording {
   const recordings = loadRecordings();
   const now = new Date().toISOString();
@@ -210,6 +211,7 @@ export function createRecording(data: {
     duration: data.duration,
     sourceStreamId: data.sourceStreamId,
     autoStopWhenStreamOffline: data.autoStopWhenStreamOffline,
+    ignoreDuration: data.ignoreDuration,
     createdAt: now,
     updatedAt: now,
   };

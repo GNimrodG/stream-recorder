@@ -11,6 +11,9 @@ type ParsedResponse = {
   statusCode: number | null;
   cseq: number | null;
   isRtsp: boolean;
+  // when present, some servers include a Content-Base or Content-Location header
+  // which can be used to correlate responses to the requested URL
+  contentBase?: string | null;
 };
 
 function mapStatusCode(statusCode: number): StreamStatus {
@@ -41,6 +44,7 @@ function parseRtspResponse(raw: string): ParsedResponse {
   const headerLines = headerBlock.split("\r\n");
 
   let cseq: number | null = null;
+  let contentBase: string | null = null;
 
   for (let i = 1; i < headerLines.length; i++) {
     const line = headerLines[i];
@@ -55,7 +59,10 @@ function parseRtspResponse(raw: string): ParsedResponse {
       if (!Number.isNaN(parsed)) {
         cseq = parsed;
       }
-      break;
+    }
+
+    if (name === "content-base" || name === "content-location") {
+      contentBase = value;
     }
   }
 
@@ -63,6 +70,7 @@ function parseRtspResponse(raw: string): ParsedResponse {
     statusCode: Number.isNaN(statusCode) ? null : statusCode,
     cseq,
     isRtsp: true,
+    contentBase,
   };
 }
 
@@ -351,6 +359,17 @@ async function checkMultipleStreamStatus(
             let cseq: number | undefined;
             if (parsedResponse.cseq !== null && pendingByCseq.has(parsedResponse.cseq)) {
               cseq = parsedResponse.cseq;
+            } else if (parsedResponse.contentBase) {
+              // try to correlate response by Content-Base/Content-Location header
+              for (const [key, pending] of pendingByCseq.entries()) {
+                if (
+                  pending.url.startsWith(parsedResponse.contentBase) ||
+                  pending.url.includes(parsedResponse.contentBase)
+                ) {
+                  cseq = key as number;
+                  break;
+                }
+              }
             } else {
               const iterator = pendingByCseq.keys();
               cseq = iterator.next().value;

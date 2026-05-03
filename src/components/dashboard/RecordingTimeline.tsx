@@ -418,38 +418,50 @@ const RecordingTimeline = forwardRef<RecordingTimelineHandle, RecordingTimelineP
               gap: "4px 1px",
               paddingBottom: (theme) => theme.spacing(2),
             }}>
-            {lane.map((item) => (
-              <Box
-                key={item.recording.id}
-                sx={{
-                  gridColumn: `${item.startIndex + 1} / ${item.endIndex + 1}`,
-                  bgcolor: getStatusColor(item.recording.status),
-                  borderRadius: 0.5,
-                  p: 0.5,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  marginLeft: `calc(var(--one-minute-width) * ${item.startDiff / MS_PER_MINUTE})`,
-                  marginRight: `calc(var(--one-minute-width) * ${item.endDiff / MS_PER_MINUTE})`,
-                  // Apply pulse animation only for active recording states
-                  ...(ACTIVE_STATES.has(item.recording.status)
-                    ? { animation: "recordingPulse 1.2s ease-in-out infinite" }
-                    : {}),
-                }}
-                title={`${item.recording.name} | ${formatDate(item.recording.startTime)} - ${formatDate(item.endTime)} | ${formatDuration(item.actualDuration)}`}>
-                <Typography
-                  variant="subtitle2"
+            {lane.map((item) => {
+              const baseColor = getStatusColor(item.recording.status);
+              const isIgnore = Boolean(item.recording.ignoreDuration);
+              // For recordings that ignore duration, render a gradient that fades to transparent at the end
+              const backgroundValue = isIgnore
+                ? `linear-gradient(90deg, ${baseColor} 0%, ${baseColor} 80%, rgba(0,0,0,0) 100%)`
+                : baseColor;
+
+              return (
+                <Box
+                  key={item.recording.id}
                   sx={{
-                    color: (theme) => theme.palette.getContrastText(getStatusColor(item.recording.status)),
-                    lineHeight: 1,
-                    textOverflow: "ellipsis",
-                    overflow: "hidden",
-                    whiteSpace: "nowrap",
-                  }}>
-                  {item.recording.name}
-                </Typography>
-              </Box>
-            ))}
+                    gridColumn: `${item.startIndex + 1} / ${item.endIndex + 1}`,
+                    // Use background to allow gradient fade-out when ignoreDuration is set
+                    background: backgroundValue,
+                    borderRadius: 0.5,
+                    p: 0.5,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginLeft: `calc(var(--one-minute-width) * ${item.startDiff / MS_PER_MINUTE})`,
+                    marginRight: `calc(var(--one-minute-width) * ${item.endDiff / MS_PER_MINUTE})`,
+                    // Apply pulse animation only for active recording states
+                    ...(ACTIVE_STATES.has(item.recording.status)
+                      ? { animation: "recordingPulse 1.2s ease-in-out infinite" }
+                      : {}),
+                  }}
+                  title={`${item.recording.name} | ${formatDate(item.recording.startTime)} - ${formatDate(
+                    item.endTime,
+                  )} | ${formatDuration(item.actualDuration)}`}>
+                  <Typography
+                    variant="subtitle2"
+                    sx={{
+                      color: (theme) => theme.palette.getContrastText(baseColor),
+                      lineHeight: 1,
+                      textOverflow: "ellipsis",
+                      overflow: "hidden",
+                      whiteSpace: "nowrap",
+                    }}>
+                    {item.recording.name}
+                  </Typography>
+                </Box>
+              );
+            })}
           </Box>
         ))}
       </Box>

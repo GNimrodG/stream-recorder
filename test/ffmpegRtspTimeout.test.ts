@@ -1,30 +1,62 @@
-import { beforeEach, describe, expect, it } from "vitest";
-import {
-  extractUnsupportedRtspTimeoutFlag,
-  reportUnsupportedRtspTimeoutFlag,
-  resetRtspTimeoutFlagCacheForTests,
-  resolveRtspTimeoutFlag,
-} from "../src/lib/ffmpegRtspTimeout";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const { spawnSyncMock } = vi.hoisted(() => ({
+  spawnSyncMock: vi.fn(),
+}));
+
+vi.mock("node:child_process", () => ({
+  spawnSync: spawnSyncMock,
+}));
 
 describe("ffmpegRtspTimeout", () => {
   beforeEach(() => {
-    resetRtspTimeoutFlagCacheForTests();
+    vi.resetModules();
+    spawnSyncMock.mockReset();
   });
 
-  it("parses unsupported timeout options from ffmpeg stderr", () => {
-    expect(extractUnsupportedRtspTimeoutFlag("Option rw_timeout not found.")).toBe("-rw_timeout");
-    expect(extractUnsupportedRtspTimeoutFlag("Option stimeout not found.")).toBe("-stimeout");
-    expect(extractUnsupportedRtspTimeoutFlag("Option timeout not found.")).toBe("-timeout");
-    expect(extractUnsupportedRtspTimeoutFlag("Input #0, rtsp, from 'rtsp://example/live':")).toBeNull();
+  it("resolves the timeout flag from RTSP demuxer help and caches it per ffmpeg path", async () => {
+    spawnSyncMock.mockImplementation((_ffmpegPath: string, args: string[]) => {
+      const helpOutput = args.includes("demuxer=rtsp")
+        ? [
+            "Demuxer rtsp [RTSP input]:",
+            "  -timeout           <int64>      .D......... set timeout (in microseconds)",
+          ].join("\n")
+        : "";
+
+      return { stdout: helpOutput, stderr: "", status: 0 };
+    });
+
+    const { resolveRtspTimeoutFlag } = await import("../src/lib/ffmpegRtspTimeout");
+
+    expect(resolveRtspTimeoutFlag("/opt/ffmpeg")).toBe("-timeout");
+    expect(resolveRtspTimeoutFlag("/opt/ffmpeg")).toBe("-timeout");
+    expect(spawnSyncMock).toHaveBeenCalledTimes(1);
+    expect(spawnSyncMock).toHaveBeenCalledWith("/opt/ffmpeg", ["-hide_banner", "-h", "demuxer=rtsp"], {
+      encoding: "utf-8",
+      timeout: 7000,
+    });
   });
 
-  it("uses fallback order and caches the next timeout flag per ffmpeg path", () => {
-    const ffmpegPath = "/usr/bin/ffmpeg";
+  it("falls back to full help when demuxer help is inconclusive and keeps caches separate per path", async () => {
+    spawnSyncMock.mockImplementation((_ffmpegPath: string, args: string[]) => {
+      const command = args.join(" ");
 
-    expect(resolveRtspTimeoutFlag(ffmpegPath)).toBe("-rw_timeout");
-    expect(reportUnsupportedRtspTimeoutFlag(ffmpegPath, "-rw_timeout")).toBe("-stimeout");
-    expect(resolveRtspTimeoutFlag(ffmpegPath)).toBe("-stimeout");
-    expect(reportUnsupportedRtspTimeoutFlag(ffmpegPath, "-stimeout")).toBe("-timeout");
-    expect(resolveRtspTimeoutFlag(ffmpegPath)).toBe("-timeout");
+      if (command.includes("demuxer=rtsp")) {
+        return { stdout: "", stderr: "", status: 0 };
+      }
+
+      return {
+        stdout: ["Full help output", "  -stimeout         <int>        .D......... set socket I/O timeout"].join("\n"),
+        stderr: "",
+        status: 0,
+      };
+    });
+
+    const { resolveRtspTimeoutFlag } = await import("../src/lib/ffmpegRtspTimeout");
+
+    expect(resolveRtspTimeoutFlag("ffmpeg-a")).toBe("-stimeout");
+    expect(resolveRtspTimeoutFlag("ffmpeg-a")).toBe("-stimeout");
+    expect(resolveRtspTimeoutFlag("ffmpeg-b")).toBe("-stimeout");
+    expect(spawnSyncMock).toHaveBeenCalledTimes(4);
   });
 });

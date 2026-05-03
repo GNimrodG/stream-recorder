@@ -27,13 +27,18 @@ vi.mock("@/lib/stream", () => ({
 }));
 
 // Mock ffmpeg helpers
-vi.mock("@/lib/ffmpeg", () => ({
-  buildFFmpegArgs: (url: string, out: string, duration: number) => ["-i", url, out, "-t", String(duration)],
-  mergeRecordingParts: vi.fn((_parts: string[], _out: string) => {
+vi.mock("@/lib/ffmpeg", () => {
+  const build = vi.fn((url: string, out: string, duration: number) => ["-i", url, out, "-t", String(duration)]);
+  const merge = vi.fn((_parts: string[], _out: string) => {
     // default merge behavior in tests is to succeed
     return true;
-  }),
-}));
+  });
+
+  return {
+    buildFFmpegArgs: build,
+    mergeRecordingParts: merge,
+  };
+});
 
 vi.mock("@/lib/ffmpegRtspTimeout", () => ({
   extractUnsupportedRtspTimeoutFlag: () => null,
@@ -122,5 +127,43 @@ describe("RecordingManager - constructor validation", () => {
 
   it("throws when startTime is invalid", () => {
     expect(() => new RecordingManager("1", "Name", "rtsp://valid", "not-a-date", 10)).toThrow(/Invalid start time/);
+  });
+});
+
+describe("RecordingManager - ignoreDuration behavior", () => {
+  it("passes -1 to buildFFmpegArgs when ignoreDuration is true", async () => {
+    // arrange: create a pending recording entry so RecordingManager.start() finds it
+    const id = "ignore-duration-test";
+    const past = new Date(Date.now() - 2000).toISOString();
+
+    recordingsStore.push({
+      id,
+      name: "TestCam",
+      rtspUrl: "rtsp://testcam",
+      startTime: past,
+      duration: 60,
+    });
+
+    // make the stream checker report live immediately
+    checkStreamStatusMock.mockResolvedValue("live");
+
+    // arrange: spy console so we can assert on the printed ffmpeg params
+    const logSpy = vi.spyOn(console, "log");
+
+    // act: instantiate manager with ignoreDuration = true
+    // noinspection JSUnusedLocalSymbols
+    const mgr = new RecordingManager(id, "TestCam", "rtsp://testcam", past, 60, true);
+
+    // allow async start path (checkStreamStatus + startRecording) to run
+    await new Promise((resolve) => setImmediate(resolve));
+
+    // assert: console was asked to print ffmpeg params and they include '-t -1'
+    const called = (logSpy.mock.calls as any[])
+      .map((c) => c.join(" "))
+      .find((s) => s.includes("Running FFMpeg with params"));
+
+    expect(called).toBeTruthy();
+    expect(called).toContain("-t -1");
+    logSpy.mockRestore();
   });
 });

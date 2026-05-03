@@ -1,6 +1,5 @@
 import { RecordingStatus } from "@/types/recording";
 import { checkStreamStatus } from "@/lib/stream";
-import { extractUnsupportedRtspTimeoutFlag, reportUnsupportedRtspTimeoutFlag } from "@/lib/ffmpegRtspTimeout";
 import { clearInterval } from "node:timers";
 import { loadSettings } from "@/lib/settings";
 import fs from "node:fs";
@@ -435,7 +434,6 @@ export class RecordingManager {
 
     const duration = this.getRemainingDuration();
     const ffmpegArgs = buildFFmpegArgs(this.url, outputPath, this.ignoreDuration ? -1 : duration);
-    let unsupportedTimeoutFlagDetected = false;
 
     this.log(`Running FFMpeg with params: ${ffmpegArgs.join(" ")}`);
 
@@ -452,13 +450,6 @@ export class RecordingManager {
       this.log(`stderr: ${data}`);
 
       const line = data.toString();
-      const unsupportedFlag = extractUnsupportedRtspTimeoutFlag(line);
-
-      if (unsupportedFlag) {
-        const fallbackFlag = reportUnsupportedRtspTimeoutFlag(this.FFMPEG_PATH, unsupportedFlag);
-        this.log(`FFmpeg does not support ${unsupportedFlag}. Next retry will use ${fallbackFlag}.`);
-        unsupportedTimeoutFlagDetected = true;
-      }
 
       // Check for error conditions
       if (
@@ -541,15 +532,6 @@ export class RecordingManager {
       }
 
       const remaining = this.getRemainingDuration();
-
-      if (unsupportedTimeoutFlagDetected && remaining > 0) {
-        this.log(
-          `Recording failed due to unsupported timeout option, retrying with fallback (${remaining.toFixed(1)}s remaining).`,
-        );
-        this.status = "retrying";
-        this._start();
-        return;
-      }
 
       if (remaining > 0) {
         this.log(`Recording stopped before completion, ${remaining.toFixed(1)} seconds remaining. Will retry...`);

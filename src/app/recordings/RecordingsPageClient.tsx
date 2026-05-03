@@ -20,7 +20,7 @@ import {
   TablePagination,
   TableRow,
   Tooltip,
-  Typography
+  Typography,
 } from "@mui/material";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
@@ -41,15 +41,16 @@ import {
   CreateRecordingDto,
   RecordingFilterStatus,
   RecordingPaginationMeta,
-  RecordingWithStatus
+  RecordingWithStatus,
 } from "@/types/recording";
 import RecordingDialog from "@/components/dialogs/RecordingDialog";
 import RecordingLogsDialog from "@/components/dialogs/RecordingLogsDialog";
 import StatusDisplay from "@/components/StatusDisplay";
 import RecordingPreviewDialog from "@/components/dialogs/RecordingPreviewDialog";
-import { formatDate, formatDuration, getActualDuration } from "@/utils";
+import { formatDate } from "@/utils";
 import CustomChip from "@/components/CustomChip";
 import { STATUS_COLORS } from "@/theme";
+import DurationDisplay from "@/components/DurationDisplay";
 
 const FILTERS: RecordingFilterStatus[] = [
   "all",
@@ -118,6 +119,7 @@ export default function RecordingsPageClient({
     rtspUrl: "",
     startTime: new Date().toISOString(),
     duration: 3600,
+    ignoreDuration: false,
   });
 
   const isEditDialog = recordingDialogState?.mode === "edit";
@@ -250,6 +252,7 @@ export default function RecordingsPageClient({
       rtspUrl: "",
       startTime: new Date().toISOString(),
       duration: 3600,
+      ignoreDuration: false,
     });
     setRecordingDialogState({ mode: "create" });
   }, []);
@@ -273,6 +276,7 @@ export default function RecordingsPageClient({
         rtspUrl: "",
         startTime: new Date().toISOString(),
         duration: 3600,
+        ignoreDuration: false,
       });
       setSnackbar({
         open: true,
@@ -302,6 +306,7 @@ export default function RecordingsPageClient({
           name: formData.name,
           startTime: formData.startTime,
           duration: formData.duration,
+          ignoreDuration: formData.ignoreDuration,
         }),
       });
 
@@ -433,6 +438,7 @@ export default function RecordingsPageClient({
       rtspUrl: recording.rtspUrl,
       startTime: recording.startTime,
       duration: recording.duration,
+      ignoreDuration: recording.ignoreDuration || false,
     });
     setRecordingDialogState({ mode: "edit", recording });
   };
@@ -526,6 +532,7 @@ export default function RecordingsPageClient({
               ) : (
                 recordings.map((recording) => (
                   <TableRow key={recording.id}>
+                    {/* Name */}
                     <TableCell>
                       <Typography variant="body2" fontWeight="medium">
                         {recording.name}
@@ -534,6 +541,7 @@ export default function RecordingsPageClient({
                         Created: {formatDate(recording.createdAt)}
                       </Typography>
                     </TableCell>
+                    {/* RTSP URL */}
                     <TableCell>
                       <Tooltip title={recording.rtspUrl}>
                         <Typography
@@ -548,18 +556,19 @@ export default function RecordingsPageClient({
                         </Typography>
                       </Tooltip>
                     </TableCell>
+                    {/* Start Time */}
                     <TableCell>{formatDate(recording.startTime)}</TableCell>
+                    {/* Duration */}
                     <TableCell>
-                      <Tooltip
-                        title={`${formatDuration(recording.duration)} scheduled, ${formatDuration(getActualDuration(recording))} actual`}>
-                        <span>{formatDuration(getActualDuration(recording))}</span>
-                      </Tooltip>
+                      <DurationDisplay recording={recording} />
                     </TableCell>
+                    {/* Status */}
                     <TableCell>
                       <Stack direction="row" alignItems="center">
                         <StatusDisplay recording={recording} />
                       </Stack>
                     </TableCell>
+                    {/* Ended At */}
                     <TableCell>
                       {recording.endedAt ? (
                         <Tooltip title={recording.endedAt}>
@@ -571,6 +580,7 @@ export default function RecordingsPageClient({
                         </Typography>
                       )}
                     </TableCell>
+                    {/* Output Path */}
                     <TableCell>
                       {recording.outputPath ? (
                         <Tooltip title={recording.outputPath}>
@@ -599,6 +609,7 @@ export default function RecordingsPageClient({
                         </Typography>
                       )}
                     </TableCell>
+                    {/* Actions */}
                     <TableCell align="right">
                       <Box
                         sx={{

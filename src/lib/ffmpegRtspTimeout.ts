@@ -1,29 +1,46 @@
-export type RtspTimeoutFlag = "-rw_timeout" | "-stimeout" | "-timeout";
+import { spawnSync } from "node:child_process";
 
-const timeoutFlagOrder: RtspTimeoutFlag[] = ["-rw_timeout", "-stimeout", "-timeout"];
+export type RtspTimeoutFlag = "-timeout" | "-rw_timeout" | "-stimeout";
+
+const timeoutFlagOrder: RtspTimeoutFlag[] = ["-timeout", "-rw_timeout", "-stimeout"];
+const timeoutFlagPatterns: Record<RtspTimeoutFlag, RegExp> = {
+  "-timeout": /^\s+-timeout\s+/m,
+  "-rw_timeout": /^\s+-rw_timeout\s+/m,
+  "-stimeout": /^\s+-stimeout\s+/m,
+};
 const timeoutFlagCache = new Map<string, RtspTimeoutFlag>();
 
-export function resolveRtspTimeoutFlag(ffmpegPath: string): RtspTimeoutFlag {
-  return timeoutFlagCache.get(ffmpegPath) ?? "-rw_timeout";
-}
+function probeRtspTimeoutFlag(ffmpegPath: string): RtspTimeoutFlag {
+  const helpOutputs = [
+    ["-hide_banner", "-h", "demuxer=rtsp"],
+    ["-hide_banner", "-h", "full"],
+  ];
 
-export function extractUnsupportedRtspTimeoutFlag(line: string): RtspTimeoutFlag | null {
-  const normalized = line.toLowerCase();
-  for (const flag of timeoutFlagOrder) {
-    if (normalized.includes(`option ${flag.slice(1)} not found`)) {
-      return flag;
+  for (const args of helpOutputs) {
+    const result = spawnSync(ffmpegPath, args, {
+      encoding: "utf-8",
+      timeout: 7000,
+    });
+
+    const helpText = `${result.stdout || ""}${result.stderr || ""}`.toLowerCase();
+    const supportedFlag = timeoutFlagOrder.find((flag) => timeoutFlagPatterns[flag].test(helpText));
+
+    if (supportedFlag) {
+      return supportedFlag;
     }
   }
-  return null;
+
+  console.warn(`Unable to determine the RTSP timeout flag for ${ffmpegPath}; defaulting to -timeout.`);
+  return "-timeout";
 }
 
-export function reportUnsupportedRtspTimeoutFlag(ffmpegPath: string, unsupportedFlag: RtspTimeoutFlag): RtspTimeoutFlag {
-  const unsupportedIndex = timeoutFlagOrder.indexOf(unsupportedFlag);
-  const fallback = timeoutFlagOrder[Math.min(timeoutFlagOrder.length - 1, unsupportedIndex + 1)];
-  timeoutFlagCache.set(ffmpegPath, fallback);
-  return fallback;
-}
+export function resolveRtspTimeoutFlag(ffmpegPath: string): RtspTimeoutFlag {
+  const cached = timeoutFlagCache.get(ffmpegPath);
+  if (cached) {
+    return cached;
+  }
 
-export function resetRtspTimeoutFlagCacheForTests(): void {
-  timeoutFlagCache.clear();
+  const resolved = probeRtspTimeoutFlag(ffmpegPath);
+  timeoutFlagCache.set(ffmpegPath, resolved);
+  return resolved;
 }

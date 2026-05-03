@@ -33,13 +33,14 @@ import PlayCircleIcon from "@mui/icons-material/PlayCircle";
 import DownloadIcon from "@mui/icons-material/Download";
 import { CreateRecordingDto, RecordingStats, RecordingWithStatus } from "@/types/recording";
 import RecordingDialog from "@/components/dialogs/RecordingDialog";
-import { formatDate, formatDuration, getActualDuration } from "@/utils";
+import { formatDate } from "@/utils";
 import StatusDisplay from "@/components/StatusDisplay";
 import RecordingTimeline, { RecordingTimelineHandle } from "@/components/dashboard/RecordingTimeline";
 import TimelineActionPair from "@/components/dashboard/TimelineActionPair";
 import { STATUS_COLORS } from "@/theme";
 import ArticleIcon from "@mui/icons-material/Article";
 import RecordingLogsDialog from "@/components/dialogs/RecordingLogsDialog";
+import DurationDisplay from "@/components/DurationDisplay";
 
 type Props = {
   initialRecordings: RecordingWithStatus[];
@@ -412,7 +413,9 @@ export default function DashboardClient({ initialRecordings, initialStats }: Pro
                     .slice(0, 10)
                     .map((recording) => (
                       <TableRow key={recording.id}>
+                        {/* Name */}
                         <TableCell>{recording.name}</TableCell>
+                        {/* RTSP URL */}
                         <TableCell>
                           <Typography
                             variant="body2"
@@ -426,16 +429,17 @@ export default function DashboardClient({ initialRecordings, initialStats }: Pro
                             {recording.rtspUrl}
                           </Typography>
                         </TableCell>
+                        {/* Start Time */}
                         <TableCell>{formatDate(recording.startTime)}</TableCell>
+                        {/* Duration */}
                         <TableCell>
-                          <Tooltip
-                            title={`${formatDuration(recording.duration)} scheduled, ${formatDuration(getActualDuration(recording))} actual`}>
-                            <span>{formatDuration(getActualDuration(recording))}</span>
-                          </Tooltip>
+                          <DurationDisplay recording={recording} />
                         </TableCell>
+                        {/* Status */}
                         <TableCell>
                           <StatusDisplay recording={recording} />
                         </TableCell>
+                        {/* Actions */}
                         <TableCell align="right">
                           {recording.status === "completed" && recording.outputPath && (
                             <>
