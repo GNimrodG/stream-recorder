@@ -14,12 +14,16 @@ describe("ffmpegRtspTimeout", () => {
     spawnSyncMock.mockReset();
   });
 
-  it("resolves the timeout flag from RTSP demuxer help and caches it per ffmpeg path", async () => {
+  it("prefers -rw_timeout and ignores deprecated -timeout when both appear", async () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
     spawnSyncMock.mockImplementation((_ffmpegPath: string, args: string[]) => {
       const helpOutput = args.includes("demuxer=rtsp")
         ? [
             "Demuxer rtsp [RTSP input]:",
-            "  -timeout           <int64>      .D......... set timeout (in microseconds)",
+            "  -timeout           <int64>      .D......... deprecated listen timeout",
+            "  -rw_timeout        <int64>      .D......... set socket I/O timeout",
           ].join("\n")
         : "";
 
@@ -28,16 +32,24 @@ describe("ffmpegRtspTimeout", () => {
 
     const { resolveRtspTimeoutFlag } = await import("../src/lib/ffmpegRtspTimeout");
 
-    expect(resolveRtspTimeoutFlag("/opt/ffmpeg")).toBe("-timeout");
-    expect(resolveRtspTimeoutFlag("/opt/ffmpeg")).toBe("-timeout");
+    expect(resolveRtspTimeoutFlag("/opt/ffmpeg")).toBe("-rw_timeout");
+    expect(resolveRtspTimeoutFlag("/opt/ffmpeg")).toBe("-rw_timeout");
     expect(spawnSyncMock).toHaveBeenCalledTimes(1);
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("Probing RTSP timeout support"));
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("deprecated -timeout"));
     expect(spawnSyncMock).toHaveBeenCalledWith("/opt/ffmpeg", ["-hide_banner", "-h", "demuxer=rtsp"], {
       encoding: "utf-8",
       timeout: 7000,
     });
+
+    logSpy.mockRestore();
+    warnSpy.mockRestore();
   });
 
-  it("falls back to full help when demuxer help is inconclusive and keeps caches separate per path", async () => {
+  it("falls back to -stimeout when -rw_timeout is unavailable and keeps caches separate per path", async () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
     spawnSyncMock.mockImplementation((_ffmpegPath: string, args: string[]) => {
       const command = args.join(" ");
 
@@ -46,7 +58,11 @@ describe("ffmpegRtspTimeout", () => {
       }
 
       return {
-        stdout: ["Full help output", "  -stimeout         <int>        .D......... set socket I/O timeout"].join("\n"),
+        stdout: [
+          "Full help output",
+          "  -timeout          <int64>      .D......... deprecated listen timeout",
+          "  -stimeout         <int>        .D......... set socket I/O timeout",
+        ].join("\n"),
         stderr: "",
         status: 0,
       };
@@ -58,5 +74,10 @@ describe("ffmpegRtspTimeout", () => {
     expect(resolveRtspTimeoutFlag("ffmpeg-a")).toBe("-stimeout");
     expect(resolveRtspTimeoutFlag("ffmpeg-b")).toBe("-stimeout");
     expect(spawnSyncMock).toHaveBeenCalledTimes(4);
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("Running:"));
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("deprecated -timeout"));
+
+    logSpy.mockRestore();
+    warnSpy.mockRestore();
   });
 });
