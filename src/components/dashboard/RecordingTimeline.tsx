@@ -34,6 +34,11 @@ const getTimelineEndMs = (recording: RecordingWithStatus): number => {
   const plannedEndMs = startMs + Math.max(0, recording.duration) * 1000;
 
   if (NOT_FINISHED_STATES.has(recording.status)) {
+    // if the recording is still active and ignoreDuration is set with the planned end time in the past, use the current time as the end time to reflect that it's still ongoing
+    if (recording.ignoreDuration && Date.now() > plannedEndMs) {
+      return Date.now();
+    }
+
     return plannedEndMs;
   }
 
