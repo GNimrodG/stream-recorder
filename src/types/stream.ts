@@ -15,4 +15,5 @@ export interface StreamStatusResult {
   id: string;
   status: StreamStatus;
   lastChecked: string;
+  httpStatus?: number;
 }

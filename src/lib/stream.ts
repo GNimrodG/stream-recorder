@@ -2,6 +2,11 @@ import net from "node:net";
 
 export type StreamStatus = "live" | "not_found" | "invalid" | "timeout" | "resp_timeout" | "error";
 
+export type StreamStatusWithCode = {
+  status: StreamStatus;
+  httpStatus?: number;
+};
+
 type StreamStatusMap = Record<string, StreamStatus>;
 
 // Host-level queues to ensure only one parallel request per hostname.
@@ -23,6 +28,10 @@ function mapStatusCode(statusCode: number): StreamStatus {
 
   if (statusCode === 404) {
     return "not_found";
+  }
+
+  if (statusCode === 401) {
+    return "resp_timeout";
   }
 
   return "error";
@@ -109,14 +118,201 @@ function extractRtspMessage(buffer: string): { raw: string; rest: string } | nul
   };
 }
 
-function checkSingleStreamStatus(url: string, connectionTimeout = 1000, responseTimeout = 1000): Promise<StreamStatus> {
+async function checkSingleStreamStatus(
+  url: string,
+  connectionTimeout = 1000,
+  responseTimeout = 1000,
+): Promise<StreamStatus> {
+  return (await checkSingleStreamStatusWithCode(url, connectionTimeout, responseTimeout)).status;
+}
+
+async function checkMultipleStreamStatus(
+  urls: string[],
+  connectionTimeout = 1000,
+  responseTimeout = 4000,
+): Promise<StreamStatusMap> {
+  const results = await checkMultipleStreamStatusWithCode(urls, connectionTimeout, responseTimeout);
+  const mapped: StreamStatusMap = {};
+
+  for (const [url, result] of Object.entries(results)) {
+    mapped[url] = result.status;
+  }
+
+  return mapped;
+}
+
+// Batched checker that returns both mapped status and the raw HTTP status code when available.
+export async function checkMultipleStreamStatusWithCode(
+  urls: string[],
+  connectionTimeout = 1000,
+  responseTimeout = 4000,
+): Promise<Record<string, StreamStatusWithCode>> {
+  const results: Record<string, StreamStatusWithCode> = {};
+  if (urls.length === 0) return results;
+
+  const grouped = new Map<string, Array<{ url: string; hostname: string; port: number }>>();
+
+  for (const url of urls) {
+    try {
+      const parsed = new URL(url);
+      const hostname = parsed.hostname;
+      const port = +(parsed.port || "") || 554;
+      const key = `${hostname}:${port}`;
+
+      const group = grouped.get(key);
+      if (group) group.push({ url, hostname, port });
+      else grouped.set(key, [{ url, hostname, port }]);
+    } catch {
+      results[url] = { status: "invalid" };
+    }
+  }
+
+  await Promise.all(
+    Array.from(grouped.values()).map(async (group) => {
+      await new Promise<void>((resolve) => {
+        let buffer = "";
+        let settled = false;
+        const startTime = Date.now();
+        let connectTime = 0;
+        const first = group[0];
+        const socket = net.createConnection(first.port, first.hostname);
+
+        const pendingByCseq = new Map<number, { url: string; timer: NodeJS.Timeout }>();
+        const completedUrls = new Set<string>();
+        let nextCseq = 1;
+
+        const finalizeRequest = (url: string, status: StreamStatus, httpStatus?: number) => {
+          if (completedUrls.has(url)) return;
+          completedUrls.add(url);
+          results[url] = { status, ...(httpStatus ? { httpStatus } : {}) };
+
+          if (completedUrls.size === group.length) {
+            settled = true;
+            try {
+              socket.destroy();
+            } catch {}
+            console.log(
+              `Checked ${group.length} stream(s) on ${first.hostname}:${first.port} - connectTime: ${connectTime}ms, totalTime: ${Date.now() - startTime}ms`,
+            );
+            resolve();
+          }
+        };
+
+        const finalizePending = (status: StreamStatus) => {
+          for (const [cseq, pending] of pendingByCseq.entries()) {
+            clearTimeout(pending.timer);
+            pendingByCseq.delete(cseq);
+            finalizeRequest(pending.url, status);
+          }
+
+          for (const entry of group) {
+            if (!completedUrls.has(entry.url)) finalizeRequest(entry.url, status);
+          }
+        };
+
+        socket.setKeepAlive(true, 60000);
+        socket.setNoDelay(true);
+        socket.setTimeout(connectionTimeout);
+
+        socket.on("connect", () => {
+          connectTime = Date.now() - startTime;
+          socket.setTimeout(0);
+
+          for (const { url } of group) {
+            const cseq = nextCseq++;
+            const describeRequest = `DESCRIBE ${url} RTSP/1.0\r\nCSeq: ${cseq}\r\n\r\n`;
+            try {
+              socket.write(describeRequest);
+              const timer = setTimeout(() => {
+                pendingByCseq.delete(cseq);
+                finalizeRequest(url, "resp_timeout");
+              }, responseTimeout);
+
+              pendingByCseq.set(cseq, { url, timer });
+            } catch {
+              finalizeRequest(url, "error");
+            }
+          }
+        });
+
+        socket.on("data", (data: Buffer) => {
+          buffer += data.toString();
+
+          while (true) {
+            const message = extractRtspMessage(buffer);
+            if (!message) break;
+            buffer = message.rest;
+
+            const parsedResponse = parseRtspResponse(message.raw);
+
+            let cseq: number | undefined;
+            if (parsedResponse.cseq !== null && pendingByCseq.has(parsedResponse.cseq)) {
+              cseq = parsedResponse.cseq;
+            } else if (parsedResponse.contentBase) {
+              for (const [key, pending] of pendingByCseq.entries()) {
+                if (
+                  pending.url.startsWith(parsedResponse.contentBase) ||
+                  pending.url.includes(parsedResponse.contentBase)
+                ) {
+                  cseq = key as number;
+                  break;
+                }
+              }
+            } else {
+              const iterator = pendingByCseq.keys();
+              cseq = iterator.next().value;
+            }
+
+            if (cseq === undefined) continue;
+
+            const pending = pendingByCseq.get(cseq);
+            if (!pending) continue;
+
+            pendingByCseq.delete(cseq);
+            clearTimeout(pending.timer);
+
+            if (!parsedResponse.isRtsp || parsedResponse.statusCode === null) {
+              finalizeRequest(pending.url, "invalid");
+            } else {
+              const mapped = mapStatusCode(parsedResponse.statusCode);
+              finalizeRequest(pending.url, mapped, parsedResponse.statusCode ?? undefined);
+            }
+          }
+        });
+
+        socket.on("timeout", () => {
+          if (!settled) finalizePending("timeout");
+        });
+
+        socket.on("error", () => {
+          if (!settled) finalizePending("error");
+        });
+
+        socket.on("close", () => {
+          if (!settled) finalizePending("error");
+        });
+
+        socket.on("end", () => {
+          if (!settled) finalizePending("error");
+        });
+      });
+    }),
+  );
+
+  return results;
+}
+
+function checkSingleStreamStatusWithCode(
+  url: string,
+  connectionTimeout = 1000,
+  responseTimeout = 4000,
+): Promise<StreamStatusWithCode> {
   const parsed = new URL(url);
   const hostname = parsed.hostname;
-  const port = +(parsed.port || "") || 554; // Default RTSP port
-  const hostKey = hostname; // concurrency is limited per hostname (ignoring port)
+  const port = +(parsed.port || "") || 554;
+  const hostKey = hostname;
 
-  return new Promise<StreamStatus>((resolve) => {
-    // The actual work, executed when this request reaches the front of the host queue.
+  return new Promise<StreamStatusWithCode>((resolve) => {
     const start = () => {
       const startTime = Date.now();
       let connectTime = 0;
@@ -124,23 +320,21 @@ function checkSingleStreamStatus(url: string, connectionTimeout = 1000, response
       let buffer = "";
       let settled = false;
 
-      const finalize = (status: StreamStatus) => {
+      const finalize = (status: StreamStatus, httpStatus?: number) => {
         if (settled) return;
         settled = true;
         try {
           socket.destroy();
         } catch {}
-        resolve(status);
+        resolve({ status, httpStatus });
 
         console.log(
-          `Checked ${url} - status: ${status}, connectTime: ${connectTime}ms, totalTime: ${Date.now() - startTime}ms`,
+          `Checked ${url} - status: ${status}${httpStatus ? ` (HTTP ${httpStatus})` : ""}, connectTime: ${connectTime}ms, totalTime: ${Date.now() - startTime}ms`,
         );
 
-        // Trigger next queued request for this host
         const entry = hostQueues.get(hostKey);
         if (entry) {
           entry.running = false;
-          // schedule to avoid reentrancy
           setImmediate(() => {
             const next = entry.queue.shift();
             if (next) {
@@ -177,7 +371,7 @@ function checkSingleStreamStatus(url: string, connectionTimeout = 1000, response
         }
 
         if (timeoutTimer) clearTimeout(timeoutTimer);
-        finalize(mapStatusCode(parsedResponse.statusCode));
+        finalize(mapStatusCode(parsedResponse.statusCode), parsedResponse.statusCode);
       });
 
       socket.on("error", () => {
@@ -239,192 +433,6 @@ function checkSingleStreamStatus(url: string, connectionTimeout = 1000, response
   });
 }
 
-async function checkMultipleStreamStatus(
-  urls: string[],
-  connectionTimeout = 1000,
-  responseTimeout = 2000,
-): Promise<StreamStatusMap> {
-  const results: StreamStatusMap = {};
-
-  if (urls.length === 0) {
-    return results;
-  }
-
-  const grouped = new Map<string, Array<{ url: string; hostname: string; port: number }>>();
-
-  for (const url of urls) {
-    try {
-      const parsed = new URL(url);
-      const hostname = parsed.hostname;
-      const port = +(parsed.port || "") || 554;
-      const key = `${hostname}:${port}`;
-
-      const group = grouped.get(key);
-      if (group) {
-        group.push({ url, hostname, port });
-      } else {
-        grouped.set(key, [{ url, hostname, port }]);
-      }
-    } catch {
-      results[url] = "invalid";
-    }
-  }
-
-  await Promise.all(
-    Array.from(grouped.values()).map(async (group) => {
-      await new Promise<void>((resolve) => {
-        let buffer = "";
-        let settled = false;
-        const startTime = Date.now();
-        let connectTime = 0;
-        const first = group[0];
-        const socket = net.createConnection(first.port, first.hostname);
-
-        const pendingByCseq = new Map<number, { url: string; timer: NodeJS.Timeout }>();
-        const completedUrls = new Set<string>();
-        let nextCseq = 1;
-
-        const finalizeRequest = (url: string, status: StreamStatus) => {
-          if (completedUrls.has(url)) {
-            return;
-          }
-
-          completedUrls.add(url);
-          results[url] = status;
-
-          if (completedUrls.size === group.length) {
-            settled = true;
-            try {
-              socket.destroy();
-            } catch {}
-
-            console.log(
-              `Checked ${group.length} stream(s) on ${first.hostname}:${first.port} - connectTime: ${connectTime}ms, totalTime: ${Date.now() - startTime}ms`,
-            );
-            resolve();
-          }
-        };
-
-        const finalizePending = (status: StreamStatus) => {
-          for (const [cseq, pending] of pendingByCseq.entries()) {
-            clearTimeout(pending.timer);
-            pendingByCseq.delete(cseq);
-            finalizeRequest(pending.url, status);
-          }
-
-          for (const entry of group) {
-            if (!completedUrls.has(entry.url)) {
-              finalizeRequest(entry.url, status);
-            }
-          }
-        };
-
-        socket.setKeepAlive(true, 60000);
-        socket.setNoDelay(true);
-        socket.setTimeout(connectionTimeout);
-
-        socket.on("connect", () => {
-          connectTime = Date.now() - startTime;
-          // Connection timeout is only needed before connection establishment.
-          socket.setTimeout(0);
-
-          for (const { url } of group) {
-            const cseq = nextCseq++;
-            const describeRequest = `DESCRIBE ${url} RTSP/1.0\r\nCSeq: ${cseq}\r\n\r\n`;
-
-            try {
-              socket.write(describeRequest);
-              const timer = setTimeout(() => {
-                pendingByCseq.delete(cseq);
-                finalizeRequest(url, "resp_timeout");
-              }, responseTimeout);
-
-              pendingByCseq.set(cseq, { url, timer });
-            } catch {
-              finalizeRequest(url, "error");
-            }
-          }
-        });
-
-        socket.on("data", (data: Buffer) => {
-          buffer += data.toString();
-
-          while (true) {
-            const message = extractRtspMessage(buffer);
-            if (!message) break;
-            buffer = message.rest;
-
-            const parsedResponse = parseRtspResponse(message.raw);
-
-            let cseq: number | undefined;
-            if (parsedResponse.cseq !== null && pendingByCseq.has(parsedResponse.cseq)) {
-              cseq = parsedResponse.cseq;
-            } else if (parsedResponse.contentBase) {
-              // try to correlate response by Content-Base/Content-Location header
-              for (const [key, pending] of pendingByCseq.entries()) {
-                if (
-                  pending.url.startsWith(parsedResponse.contentBase) ||
-                  pending.url.includes(parsedResponse.contentBase)
-                ) {
-                  cseq = key as number;
-                  break;
-                }
-              }
-            } else {
-              const iterator = pendingByCseq.keys();
-              cseq = iterator.next().value;
-            }
-
-            if (cseq === undefined) {
-              continue;
-            }
-
-            const pending = pendingByCseq.get(cseq);
-            if (!pending) {
-              continue;
-            }
-
-            pendingByCseq.delete(cseq);
-            clearTimeout(pending.timer);
-
-            if (!parsedResponse.isRtsp || parsedResponse.statusCode === null) {
-              finalizeRequest(pending.url, "invalid");
-            } else {
-              finalizeRequest(pending.url, mapStatusCode(parsedResponse.statusCode));
-            }
-          }
-        });
-
-        socket.on("timeout", () => {
-          if (!settled) {
-            finalizePending("timeout");
-          }
-        });
-
-        socket.on("error", () => {
-          if (!settled) {
-            finalizePending("error");
-          }
-        });
-
-        socket.on("close", () => {
-          if (!settled) {
-            finalizePending("error");
-          }
-        });
-
-        socket.on("end", () => {
-          if (!settled) {
-            finalizePending("error");
-          }
-        });
-      });
-    }),
-  );
-
-  return results;
-}
-
 export function checkStreamStatus(
   url: string,
   connectionTimeout?: number,
@@ -445,4 +453,17 @@ export function checkStreamStatus(
   }
 
   return checkSingleStreamStatus(urlOrUrls, connectionTimeout, responseTimeout);
+}
+
+export function checkStreamStatusWithCode(
+  url: string,
+  connectionTimeout?: number,
+  responseTimeout?: number,
+): Promise<StreamStatusWithCode>;
+export function checkStreamStatusWithCode(
+  url: string,
+  connectionTimeout = 1000,
+  responseTimeout = 1000,
+): Promise<StreamStatusWithCode> {
+  return checkSingleStreamStatusWithCode(url, connectionTimeout, responseTimeout);
 }

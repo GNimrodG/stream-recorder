@@ -1,7 +1,9 @@
 import { NextRequest } from "next/server";
 import { getStreamById } from "@/lib/streams";
-import { checkStreamStatus } from "@/lib/stream";
+import { checkStreamStatusWithCode } from "@/lib/stream";
 import { StreamStatusResult } from "@/types/stream";
+
+export const dynamic = "force-dynamic";
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -15,12 +17,20 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     });
   }
 
-  const status = await checkStreamStatus(stream.rtspUrl, 500, 500);
+  const { status, httpStatus } = await checkStreamStatusWithCode(stream.rtspUrl, 500, 4000);
 
   return new Response(
-    JSON.stringify({ id: stream.id, status, lastChecked: new Date().toISOString() } satisfies StreamStatusResult),
+    JSON.stringify({
+      id: stream.id,
+      status,
+      lastChecked: new Date().toISOString(),
+      ...(httpStatus && { httpStatus }),
+    } satisfies StreamStatusResult),
     {
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Cache-Control": "no-store, no-cache, must-revalidate",
+      },
     },
   );
 }

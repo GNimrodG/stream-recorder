@@ -28,7 +28,7 @@ import {
   TableRow,
   TextField,
   Tooltip,
-  Typography
+  Typography,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
@@ -95,11 +95,12 @@ export default function StreamsPageClient({ initialStreams }: Props) {
   }, []);
 
   const [isFetchingStatus, setIsFetchingStatus] = useState(false);
+  const [isInitialChecking, setIsInitialChecking] = useState(true);
 
   const fetchStreamStatus = useCallback(async (id: string) => {
     setIsFetchingStatus(true);
     try {
-      const response = await fetch(`/api/streams/${id}/status`);
+      const response = await fetch(`/api/streams/${id}/status`, { cache: "no-store" });
 
       if (!response.ok) {
         throw new Error("Failed to fetch stream status");
@@ -120,19 +121,23 @@ export default function StreamsPageClient({ initialStreams }: Props) {
 
   const fetchStreamStatuses = useCallback(async () => {
     try {
-      const response = await fetch("/api/streams/status");
+      const eventSource = new EventSource("/api/streams/status");
 
-      if (!response.ok) {
-        throw new Error("Failed to fetch stream statuses");
-      }
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data) as StreamStatusResult;
+          setStreamStatuses((prev) => ({ ...prev, [data.id]: data }));
+        } catch {
+          // Skip invalid JSON
+        }
+      };
 
-      const data = (await response.json()) as StreamStatusResult[];
-      const nextState = data.reduce<Record<string, StreamStatusResult>>((acc, item) => {
-        acc[item.id] = item;
-        return acc;
-      }, {});
-
-      setStreamStatuses(nextState);
+      eventSource.onerror = () => {
+        eventSource.close();
+        if (eventSource.readyState === EventSource.CLOSED) {
+          // Connection closed normally
+        }
+      };
     } catch (error) {
       setSnackbar({
         open: true,
@@ -144,9 +149,22 @@ export default function StreamsPageClient({ initialStreams }: Props) {
 
   // Fetch stream statuses on initial load and every 5 minutes
   useEffect(() => {
-    fetchStreamStatuses();
+    let mounted = true;
+    const run = async () => {
+      try {
+        setIsInitialChecking(true);
+        await fetchStreamStatuses();
+      } finally {
+        if (mounted) setIsInitialChecking(false);
+      }
+    };
+
+    run();
     const interval = setInterval(fetchStreamStatuses, 5 * 60 * 1000);
-    return () => clearInterval(interval);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
   }, [fetchStreamStatuses]);
 
   const handleOpenDialog = (stream?: SavedStream) => {
@@ -413,7 +431,13 @@ export default function StreamsPageClient({ initialStreams }: Props) {
                           <Typography variant="h6" noWrap sx={{ flex: 1 }}>
                             {stream.name}
                           </Typography>
-                          {streamStatuses[stream.id] && <StreamStatusChip status={streamStatuses[stream.id]} />}
+                          {streamStatuses[stream.id] ? (
+                            <StreamStatusChip status={streamStatuses[stream.id]} />
+                          ) : isInitialChecking ? (
+                            <Typography variant="caption" color="text.secondary">
+                              Checking...
+                            </Typography>
+                          ) : null}
                         </Stack>
                         <Chip label="RTSP" size="small" color="primary" variant="outlined" />
                       </Box>
@@ -526,6 +550,10 @@ export default function StreamsPageClient({ initialStreams }: Props) {
                         <Stack direction="row" alignItems="center" spacing={1}>
                           {streamStatuses[stream.id] ? (
                             <StreamStatusChip status={streamStatuses[stream.id]} />
+                          ) : isInitialChecking ? (
+                            <Typography variant="caption" color="text.secondary">
+                              Checking...
+                            </Typography>
                           ) : (
                             <Typography variant="caption" color="text.secondary">
                               Unknown

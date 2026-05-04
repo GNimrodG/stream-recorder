@@ -14,10 +14,6 @@ describe("StreamsPageClient UI", () => {
       const url = input.toString();
       const method = init?.method ?? "GET";
 
-      if (url === "/api/streams/status" && method === "GET") {
-        return new Response(JSON.stringify([]), { status: 200 });
-      }
-
       if (url === "/api/streams" && method === "POST") {
         return new Response(JSON.stringify({ ok: true }), { status: 200 });
       }
@@ -29,7 +25,17 @@ describe("StreamsPageClient UI", () => {
       throw new Error(`Unexpected fetch call: ${method} ${url}`);
     });
 
+    // Mock EventSource for stream status checks
+    class MockEventSource {
+      static CLOSED = 2;
+      onmessage: ((event: Event) => void) | null = null;
+      onerror: ((event: Event) => void) | null = null;
+      readyState = MockEventSource.CLOSED;
+      close = vi.fn();
+    }
+
     vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("EventSource", MockEventSource);
 
     render(<StreamsPageClient initialStreams={[]} />);
 

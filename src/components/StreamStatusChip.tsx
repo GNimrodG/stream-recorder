@@ -7,8 +7,10 @@ export interface ChipStatusChipProps {
 }
 
 export default function StreamStatusChip({ status }: ChipStatusChipProps) {
+  const tooltipText = `${status.status.toUpperCase()} | Last checked: ${formatDate(status.lastChecked)}`;
+
   return (
-    <Tooltip title={`${status.status.toUpperCase()} | Last checked: ${formatDate(status.lastChecked)}`}>
+    <Tooltip title={tooltipText}>
       <Chip
         label={
           status.status === "live"
@@ -16,17 +18,21 @@ export default function StreamStatusChip({ status }: ChipStatusChipProps) {
             : status.status === "error"
               ? "Error"
               : status.status === "resp_timeout"
-                ? "Offline"
-                : "Server Unavailable"
+                ? status.httpStatus === 401
+                  ? "Offline (Auth)"
+                  : "Offline"
+                : status.httpStatus === 404
+                  ? "Offline"
+                  : "Server Unavailable"
         }
         color={
           status.status === "live"
             ? "success"
             : status.status === "error"
-              ? "error"
-              : status.status === "resp_timeout"
+              ? status.httpStatus === 401
                 ? "default"
-                : "warning"
+                : "error"
+              : "default"
         }
         size="small"
       />
