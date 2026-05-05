@@ -210,9 +210,17 @@ export default function SettingsPageClient({
         </Button>
       </Box>
 
-      <Grid container spacing={3}>
+      <Box
+        sx={{
+          columnCount: { xs: 1, md: 2 },
+          columnGap: 3,
+          mb: 3,
+          "& > *": {
+            width: "100%",
+          },
+        }}>
         {/* Hardware Acceleration */}
-        <Grid size={{ xs: 12, md: 6 }}>
+        <Box sx={{ breakInside: "avoid", mb: 3, display: "inline-block", width: "100%" }}>
           <Card>
             <CardHeader
               avatar={<SpeedIcon color="primary" />}
@@ -324,10 +332,10 @@ export default function SettingsPageClient({
               </FormHelperText>
             </CardContent>
           </Card>
-        </Grid>
+        </Box>
 
         {/* Video Settings */}
-        <Grid size={{ xs: 12, md: 6 }}>
+        <Box sx={{ breakInside: "avoid", mb: 3, display: "inline-block", width: "100%" }}>
           <Card>
             <CardHeader
               avatar={<VideoSettingsIcon color="primary" />}
@@ -391,51 +399,82 @@ export default function SettingsPageClient({
                     </Select>
                   </FormControl>
                 </Grid>
-                <Grid size={{ xs: 6 }}>
+              </Grid>
+            </CardContent>
+          </Card>
+        </Box>
+
+        {/* Stream Status Checks */}
+        <Box sx={{ breakInside: "avoid", mb: 3, display: "inline-block", width: "100%" }}>
+          <Card>
+            <CardHeader
+              avatar={<InfoOutlinedIcon color="primary" />}
+              title="Stream Status Checks"
+              subheader="Tune the timeouts used while checking if a stream is live"
+            />
+            <CardContent>
+              <Grid container spacing={2}>
+                <Grid size={{ xs: 12 }}>
                   <NumberField
                     fullWidth
                     label={
                       <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                        RTSP Socket Timeout
+                        Connect Timeout
                         <Tooltip
                           title={
-                            <Box>
-                              <Typography variant="caption" sx={{ display: "block" }}>
-                                Suggested starting ranges
-                              </Typography>
-                              <Typography variant="caption" sx={{ display: "block" }}>
-                                TCP: 8000-15000 ms
-                              </Typography>
-                              <Typography variant="caption" sx={{ display: "block" }}>
-                                HTTP tunnel: 15000-30000 ms
-                              </Typography>
-                              <Typography variant="caption" sx={{ display: "block" }}>
-                                UDP: 3000-8000 ms
-                              </Typography>
-                            </Box>
+                            <Typography variant="caption">
+                              Timeout for establishing the TCP connection while checking stream status
+                            </Typography>
                           }>
                           <InfoOutlinedIcon fontSize="small" />
                         </Tooltip>
                       </Box>
                     }
                     min={0}
-                    value={settings.rtspSocketTimeoutMs}
-                    onValueChange={(v) => handleChange("rtspSocketTimeoutMs", v ?? 10000)}
+                    value={settings.streamStatusConnectionTimeoutMs}
+                    onValueChange={(v) => handleChange("streamStatusConnectionTimeoutMs", v ?? 500)}
                     slotProps={{
                       input: {
                         endAdornment: <InputAdornment position="end">ms</InputAdornment>,
                       },
                     }}
-                    helperText="0 disables timeout"
+                    helperText="Used when checking whether a stream is live. Default: 500 ms"
+                  />
+                </Grid>
+                <Grid size={{ xs: 12 }}>
+                  <NumberField
+                    fullWidth
+                    label={
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                        Response Timeout
+                        <Tooltip
+                          title={
+                            <Typography variant="caption">
+                              Timeout for the RTSP DESCRIBE response while checking stream status
+                            </Typography>
+                          }>
+                          <InfoOutlinedIcon fontSize="small" />
+                        </Tooltip>
+                      </Box>
+                    }
+                    min={0}
+                    value={settings.streamStatusResponseTimeoutMs}
+                    onValueChange={(v) => handleChange("streamStatusResponseTimeoutMs", v ?? 4000)}
+                    slotProps={{
+                      input: {
+                        endAdornment: <InputAdornment position="end">ms</InputAdornment>,
+                      },
+                    }}
+                    helperText="Used when checking whether a stream is live. Default: 4000 ms"
                   />
                 </Grid>
               </Grid>
             </CardContent>
           </Card>
-        </Grid>
+        </Box>
 
         {/* Recording Settings */}
-        <Grid size={{ xs: 12, md: 6 }}>
+        <Box sx={{ breakInside: "avoid", mb: 3, display: "inline-block", width: "100%" }}>
           <Card>
             <CardHeader
               avatar={<VideoLibraryIcon color="primary" />}
@@ -491,10 +530,10 @@ export default function SettingsPageClient({
               </Grid>
             </CardContent>
           </Card>
-        </Grid>
+        </Box>
 
         {/* Storage Settings */}
-        <Grid size={{ xs: 12, md: 6 }}>
+        <Box sx={{ breakInside: "avoid", mb: 3, display: "inline-block", width: "100%" }}>
           <Card>
             <CardHeader
               avatar={<StorageIcon color="primary" />}
@@ -595,10 +634,10 @@ export default function SettingsPageClient({
               </Grid>
             </CardContent>
           </Card>
-        </Grid>
+        </Box>
 
         {/* Preview Settings */}
-        <Grid size={{ xs: 12, md: 6 }}>
+        <Box sx={{ breakInside: "avoid", mb: 3, display: "inline-block", width: "100%" }}>
           <Card>
             <CardHeader
               avatar={<PreviewIcon color="primary" />}
@@ -649,35 +688,33 @@ export default function SettingsPageClient({
               </Grid>
             </CardContent>
           </Card>
-        </Grid>
+        </Box>
+      </Box>
 
-        {/* Actions */}
-        <Grid size={{ xs: 12 }}>
-          <Paper
-            sx={{
-              p: 2,
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}>
-            <Button variant="outlined" color="warning" onClick={handleResetToDefaults}>
-              Reset to Defaults
-            </Button>
-            <Box sx={{ display: "flex", gap: 2 }}>
-              <Button variant="outlined" onClick={handleDiscardChanges} disabled={!hasChanges}>
-                Discard Changes
-              </Button>
-              <Button
-                variant="contained"
-                startIcon={saving ? <CircularProgress size={20} color="inherit" /> : <SaveIcon />}
-                onClick={handleSaveSettings}
-                disabled={saving || !hasChanges}>
-                Save Settings
-              </Button>
-            </Box>
-          </Paper>
-        </Grid>
-      </Grid>
+      {/* Actions */}
+      <Paper
+        sx={{
+          p: 2,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}>
+        <Button variant="outlined" color="warning" onClick={handleResetToDefaults}>
+          Reset to Defaults
+        </Button>
+        <Box sx={{ display: "flex", gap: 2 }}>
+          <Button variant="outlined" onClick={handleDiscardChanges} disabled={!hasChanges}>
+            Discard Changes
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={saving ? <CircularProgress size={20} color="inherit" /> : <SaveIcon />}
+            onClick={handleSaveSettings}
+            disabled={saving || !hasChanges}>
+            Save Settings
+          </Button>
+        </Box>
+      </Paper>
 
       {/* Snackbar */}
       <Snackbar open={snackbar.open} autoHideDuration={4000} onClose={() => setSnackbar({ ...snackbar, open: false })}>

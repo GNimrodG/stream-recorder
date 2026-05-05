@@ -1,6 +1,6 @@
 import { RecordingManager } from "@/lib/RecordingManager";
 import { createRecording, getAllRecordings } from "@/lib/recordings";
-import { checkStreamStatus } from "@/lib/stream";
+import { checkStreamStatus } from "@/lib/rtsp";
 import { getAllStreams } from "@/lib/streams";
 
 const STATUS_CHECK_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes

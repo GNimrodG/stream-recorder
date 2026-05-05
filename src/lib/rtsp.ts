@@ -30,10 +30,6 @@ function mapStatusCode(statusCode: number): StreamStatus {
     return "not_found";
   }
 
-  if (statusCode === 401) {
-    return "resp_timeout";
-  }
-
   return "error";
 }
 
@@ -401,6 +397,7 @@ function checkSingleStreamStatusWithCode(
 
       socket.on("connect", () => {
         connectTime = Date.now() - startTime;
+        socket.setTimeout(0);
       });
 
       // Send DESCRIBE once connected (write will queue before connect)

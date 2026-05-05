@@ -18,6 +18,8 @@ const mockedSettings: Settings = {
   defaultDuration: 3600,
   rtspTransport: "tcp",
   rtspSocketTimeoutMs: 1234,
+  streamStatusResponseTimeoutMs: 4000,
+  streamStatusConnectionTimeoutMs: 500,
   reconnectAttempts: 3,
   reconnectDelay: 5,
   outputDirectory: "./recordings",

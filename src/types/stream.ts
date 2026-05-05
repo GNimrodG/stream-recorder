@@ -1,4 +1,4 @@
-import { StreamStatus } from "@/lib/stream";
+import { StreamStatus } from "@/lib/rtsp";
 
 export interface SavedStream {
   id: string;

@@ -1,5 +1,5 @@
 import { RecordingStatus } from "@/types/recording";
-import { checkStreamStatus } from "@/lib/stream";
+import { checkStreamStatus } from "@/lib/rtsp";
 import { clearInterval } from "node:timers";
 import { loadSettings } from "@/lib/settings";
 import fs from "node:fs";

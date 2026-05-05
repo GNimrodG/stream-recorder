@@ -1,21 +1,34 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { getAllStreamsMock, getStreamByIdMock, checkMultipleStreamStatusWithCodeMock, checkStreamStatusWithCodeMock } =
-  vi.hoisted(() => ({
-    getAllStreamsMock: vi.fn(),
-    getStreamByIdMock: vi.fn(),
-    checkMultipleStreamStatusWithCodeMock: vi.fn(),
-    checkStreamStatusWithCodeMock: vi.fn(),
-  }));
+const {
+  getAllStreamsMock,
+  getStreamByIdMock,
+  checkMultipleStreamStatusWithCodeMock,
+  checkStreamStatusWithCodeMock,
+  loadSettingsMock,
+} = vi.hoisted(() => ({
+  getAllStreamsMock: vi.fn(),
+  getStreamByIdMock: vi.fn(),
+  checkMultipleStreamStatusWithCodeMock: vi.fn(),
+  checkStreamStatusWithCodeMock: vi.fn(),
+  loadSettingsMock: vi.fn(() => ({
+    streamStatusConnectionTimeoutMs: 500,
+    streamStatusResponseTimeoutMs: 4000,
+  })),
+}));
 
 vi.mock("@/lib/streams", () => ({
   getAllStreams: getAllStreamsMock,
   getStreamById: getStreamByIdMock,
 }));
 
-vi.mock("@/lib/stream", () => ({
+vi.mock("@/lib/rtsp", () => ({
   checkMultipleStreamStatusWithCode: checkMultipleStreamStatusWithCodeMock,
   checkStreamStatusWithCode: checkStreamStatusWithCodeMock,
+}));
+
+vi.mock("@/lib/settings", () => ({
+  loadSettings: loadSettingsMock,
 }));
 
 describe("stream status routes", () => {
@@ -25,6 +38,11 @@ describe("stream status routes", () => {
     getStreamByIdMock.mockReset();
     checkMultipleStreamStatusWithCodeMock.mockReset();
     checkStreamStatusWithCodeMock.mockReset();
+    loadSettingsMock.mockReset();
+    loadSettingsMock.mockReturnValue({
+      streamStatusConnectionTimeoutMs: 500,
+      streamStatusResponseTimeoutMs: 4000,
+    });
   });
 
   it("returns bulk stream statuses as Server-Sent Events stream", async () => {

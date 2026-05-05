@@ -14,6 +14,8 @@ export interface Settings {
   defaultDuration: number; // in seconds
   rtspTransport: "tcp" | "udp" | "http";
   rtspSocketTimeoutMs: number; // in milliseconds, 0 disables timeout
+  streamStatusResponseTimeoutMs: number; // in milliseconds for stream status RTSP DESCRIBE response timeout
+  streamStatusConnectionTimeoutMs: number; // in milliseconds for stream status RTSP TCP connect timeout
   reconnectAttempts: number;
   reconnectDelay: number; // in seconds
 
@@ -39,6 +41,8 @@ export const defaultSettings: Settings = {
   defaultDuration: 3600,
   rtspTransport: "tcp",
   rtspSocketTimeoutMs: 10000,
+  streamStatusResponseTimeoutMs: 4000,
+  streamStatusConnectionTimeoutMs: 500,
   reconnectAttempts: 3,
   reconnectDelay: 5,
   outputDirectory: "./recordings",

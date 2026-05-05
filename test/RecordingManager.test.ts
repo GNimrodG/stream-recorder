@@ -22,7 +22,7 @@ vi.mock("@/lib/settings", () => ({
 
 // Mock stream status checker
 const checkStreamStatusMock = vi.fn();
-vi.mock("@/lib/stream", () => ({
+vi.mock("@/lib/rtsp", () => ({
   checkStreamStatus: (...args: unknown[]) => checkStreamStatusMock(...(args as any)),
 }));
 

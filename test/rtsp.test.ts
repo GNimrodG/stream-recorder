@@ -47,8 +47,7 @@ describe("stream checkStreamStatus", () => {
     const fakeSocket = await createFakeSocket();
     (net.createConnection as unknown) = vi.fn(() => fakeSocket as unknown as net.Socket);
 
-    const mod = await import("../src/lib/stream");
-
+    const mod = await import("../src/lib/rtsp");
     const p = mod.checkStreamStatus("rtsp://localhost/stream1", 50);
     const r = await p;
     expect(r).toBe("resp_timeout");
@@ -58,7 +57,7 @@ describe("stream checkStreamStatus", () => {
     const fakeSocket = await createFakeSocket();
     (net.createConnection as unknown) = vi.fn(() => fakeSocket as unknown as net.Socket);
 
-    const mod = await import("../src/lib/stream");
+    const mod = await import("../src/lib/rtsp");
 
     const p = mod.checkStreamStatus("rtsp://localhost/test404", 1000);
     // send a 404 with CSeq 1
@@ -72,7 +71,7 @@ describe("stream checkStreamStatus", () => {
     const fakeSocket = await createFakeSocket();
     (net.createConnection as unknown) = vi.fn(() => fakeSocket as unknown as net.Socket);
 
-    const mod = await import("../src/lib/stream");
+    const mod = await import("../src/lib/rtsp");
 
     const p = mod.checkStreamStatus("rtsp://localhost/ok", 1000);
     // send a 200 OK response
@@ -86,7 +85,7 @@ describe("stream checkStreamStatus", () => {
     const fakeSocket = await createFakeSocket();
     (net.createConnection as unknown) = vi.fn(() => fakeSocket as unknown as net.Socket);
 
-    const mod = await import("../src/lib/stream");
+    const mod = await import("../src/lib/rtsp");
 
     const p = mod.checkStreamStatus("rtsp://localhost/sdp", 1000);
     // RTSP response headers followed by SDP (starts with v=), no Content-Length
@@ -100,7 +99,7 @@ describe("stream checkStreamStatus", () => {
     const fakeSocket = await createFakeSocket();
     (net.createConnection as unknown) = vi.fn(() => fakeSocket as unknown as net.Socket);
 
-    const mod = await import("../src/lib/stream");
+    const mod = await import("../src/lib/rtsp");
 
     const p = mod.checkStreamStatus("rtsp://localhost/bad", 1000);
     // send a response that doesn't start with RTSP/1.0
@@ -114,7 +113,7 @@ describe("stream checkStreamStatus", () => {
     const fakeSocket = await createFakeSocket();
     (net.createConnection as unknown) = vi.fn(() => fakeSocket as unknown as net.Socket);
 
-    const mod = await import("../src/lib/stream");
+    const mod = await import("../src/lib/rtsp");
 
     const p = mod.checkStreamStatus("rtsp://localhost/badstatus", 1000);
     // RTSP prefix but non-numeric status code
@@ -128,7 +127,7 @@ describe("stream checkStreamStatus", () => {
     const fakeSocket = await createFakeSocket();
     (net.createConnection as unknown) = vi.fn(() => fakeSocket as unknown as net.Socket);
 
-    const mod = await import("../src/lib/stream");
+    const mod = await import("../src/lib/rtsp");
 
     const p = mod.checkStreamStatus("rtsp://localhost/willclose", 1000);
     // simulate socket close before any response
@@ -150,7 +149,7 @@ describe("stream checkStreamStatus", () => {
       return s as unknown as net.Socket;
     });
 
-    const mod = await import("../src/lib/stream");
+    const mod = await import("../src/lib/rtsp");
 
     const p1 = mod.checkStreamStatus("rtsp://localhost/one", 1000);
     const p2 = mod.checkStreamStatus("rtsp://localhost/two", 1000);
@@ -178,7 +177,7 @@ describe("stream checkStreamStatus", () => {
     const fakeSocket = await createFakeSocket();
     (net.createConnection as unknown) = vi.fn(() => fakeSocket as unknown as net.Socket);
 
-    const mod = await import("../src/lib/stream");
+    const mod = await import("../src/lib/rtsp");
 
     const p = mod.checkStreamStatus(["rtsp://localhost/one", "rtsp://localhost/two"], 1000, 1000);
 

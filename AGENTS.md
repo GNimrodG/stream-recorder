@@ -16,7 +16,7 @@
 - Recording lifecycle states are in `src/types/recording.ts`: `scheduled -> starting/recording/retrying -> completed|failed|cancelled`.
 - `createRecording()` in `src/lib/recordings.ts` both persists a record and immediately constructs `RecordingManager`.
 - `RecordingManager` retries when stream drops, records attempts as part files, then merges via `mergeRecordingParts()` in `src/lib/ffmpeg.ts`.
-- Stream liveness checks use raw RTSP `DESCRIBE` sockets in `src/lib/stream.ts` with host-level request queues (one active check per host).
+- Stream liveness checks use raw RTSP `DESCRIBE` sockets in `src/lib/rtsp.ts` with host-level request queues (one active check per host).
 - Storage cleanup (`src/lib/storage.ts`) is periodic and destructive (deletes files + DB entries) based on settings limits.
 
 ## API and integration patterns
@@ -28,7 +28,7 @@
 
 ## Developer workflows (project-specific)
 - Use Yarn scripts from `package.json`: `yarn dev`, `yarn build`, `yarn start`, `yarn lint`, `yarn test`.
-- Tests are Vitest-based and currently focus on stream probing and manager behavior (`test/stream.test.ts`, `test/RecordingManager.test.ts`) with heavy module mocking.
+- Tests are Vitest-based and currently focus on stream probing and manager behavior (`test/rtsp.test.ts`, `test/RecordingManager.test.ts`) with heavy module mocking.
 - Docker runtime expects GPU-oriented image choices (`Dockerfile`, `docker-compose.yml`), including NVIDIA runtime and static FFmpeg with NVENC-enabled build.
 - Logs are part of normal debugging: per-recording logs in `logs/recording_<id>.log` are exposed by `/api/recordings/[id]/logs`.
 - To run tests use the command `yarn test run` so it doesn't watch for file changes.

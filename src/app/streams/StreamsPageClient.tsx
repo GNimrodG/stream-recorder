@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
   Box,
@@ -96,6 +96,8 @@ export default function StreamsPageClient({ initialStreams }: Props) {
 
   const [isFetchingStatus, setIsFetchingStatus] = useState(false);
   const [isInitialChecking, setIsInitialChecking] = useState(true);
+  const sseRef = useRef<EventSource | null>(null);
+  const [isSseConnected, setIsSseConnected] = useState(false);
 
   const fetchStreamStatus = useCallback(async (id: string) => {
     setIsFetchingStatus(true);
@@ -120,8 +122,21 @@ export default function StreamsPageClient({ initialStreams }: Props) {
   }, []);
 
   const fetchStreamStatuses = useCallback(async () => {
+    // Close any existing connection before creating a new one
     try {
+      if (sseRef.current) {
+        try {
+          sseRef.current.close();
+        } catch {}
+        sseRef.current = null;
+      }
+
+      // Treat the connection as active immediately so the UI stays in a checking state
+      // until we either receive stream data or the connection clearly fails.
+      setIsSseConnected(true);
+
       const eventSource = new EventSource("/api/streams/status");
+      sseRef.current = eventSource;
 
       eventSource.onmessage = (event) => {
         try {
@@ -133,10 +148,8 @@ export default function StreamsPageClient({ initialStreams }: Props) {
       };
 
       eventSource.onerror = () => {
-        eventSource.close();
-        if (eventSource.readyState === EventSource.CLOSED) {
-          // Connection closed normally
-        }
+        // Mark disconnected; EventSource may auto-retry depending on server
+        setIsSseConnected(false);
       };
     } catch (error) {
       setSnackbar({
@@ -164,6 +177,13 @@ export default function StreamsPageClient({ initialStreams }: Props) {
     return () => {
       mounted = false;
       clearInterval(interval);
+      // Close SSE connection on unmount
+      if (sseRef.current) {
+        try {
+          sseRef.current.close();
+        } catch {}
+        sseRef.current = null;
+      }
     };
   }, [fetchStreamStatuses]);
 
@@ -433,7 +453,7 @@ export default function StreamsPageClient({ initialStreams }: Props) {
                           </Typography>
                           {streamStatuses[stream.id] ? (
                             <StreamStatusChip status={streamStatuses[stream.id]} />
-                          ) : isInitialChecking ? (
+                          ) : isInitialChecking || isSseConnected ? (
                             <Typography variant="caption" color="text.secondary">
                               Checking...
                             </Typography>
@@ -550,7 +570,7 @@ export default function StreamsPageClient({ initialStreams }: Props) {
                         <Stack direction="row" alignItems="center" spacing={1}>
                           {streamStatuses[stream.id] ? (
                             <StreamStatusChip status={streamStatuses[stream.id]} />
-                          ) : isInitialChecking ? (
+                          ) : isInitialChecking || isSseConnected ? (
                             <Typography variant="caption" color="text.secondary">
                               Checking...
                             </Typography>

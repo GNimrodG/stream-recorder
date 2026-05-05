@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { getStreamById } from "@/lib/streams";
-import { checkStreamStatusWithCode } from "@/lib/stream";
+import { checkStreamStatusWithCode } from "@/lib/rtsp";
 import { StreamStatusResult } from "@/types/stream";
 
 export const dynamic = "force-dynamic";

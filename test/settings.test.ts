@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Settings } from "../src/types/settings";
+import type { Settings } from "@/types/settings";
 
 const { resolveRtspTimeoutFlagMock } = vi.hoisted(() => ({
   resolveRtspTimeoutFlagMock: vi.fn(() => "-stimeout" as const),
@@ -27,6 +27,8 @@ describe("generateSnapshotArgs", () => {
       defaultDuration: 3600,
       rtspTransport: "tcp",
       rtspSocketTimeoutMs: 4321,
+      streamStatusResponseTimeoutMs: 4000,
+      streamStatusConnectionTimeoutMs: 500,
       reconnectAttempts: 3,
       reconnectDelay: 5,
       outputDirectory: "./recordings",
