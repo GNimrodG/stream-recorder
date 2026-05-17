@@ -426,10 +426,13 @@ const RecordingTimeline = forwardRef<RecordingTimelineHandle, RecordingTimelineP
             {lane.map((item) => {
               const baseColor = getStatusColor(item.recording.status);
               const isIgnore = Boolean(item.recording.ignoreDuration);
+              const isActive = ACTIVE_STATES.has(item.recording.status);
+              const isNotFinished = isActive || NOT_FINISHED_STATES.has(item.recording.status);
               // For recordings that ignore duration, render a gradient that fades to transparent at the end
-              const backgroundValue = isIgnore
-                ? `linear-gradient(90deg, ${baseColor} 0%, ${baseColor} 80%, rgba(0,0,0,0) 100%)`
-                : baseColor;
+              const backgroundValue =
+                isIgnore && isNotFinished
+                  ? `linear-gradient(90deg, ${baseColor} 0%, ${baseColor} 80%, rgba(0,0,0,0) 100%)`
+                  : baseColor;
 
               return (
                 <Box
@@ -446,9 +449,7 @@ const RecordingTimeline = forwardRef<RecordingTimelineHandle, RecordingTimelineP
                     marginLeft: `calc(var(--one-minute-width) * ${item.startDiff / MS_PER_MINUTE})`,
                     marginRight: `calc(var(--one-minute-width) * ${item.endDiff / MS_PER_MINUTE})`,
                     // Apply pulse animation only for active recording states
-                    ...(ACTIVE_STATES.has(item.recording.status)
-                      ? { animation: "recordingPulse 1.2s ease-in-out infinite" }
-                      : {}),
+                    ...(isActive ? { animation: "recordingPulse 1.2s ease-in-out infinite" } : {}),
                   }}
                   title={`${item.recording.name} | ${formatDate(item.recording.startTime)} - ${formatDate(
                     item.endTime,
