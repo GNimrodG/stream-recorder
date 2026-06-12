@@ -86,6 +86,7 @@ function ViewerPageContent() {
     setVideoRecording(recording);
     setIsPlaying(false);
     setCurrentTime(0);
+    setDuration(recording.outputPath ? recording.duration || 0 : 0);
   }, []);
 
   // Handle recordingId from search params
@@ -105,7 +106,7 @@ function ViewerPageContent() {
     }
 
     const recording = recordings.find((r) => r.id === recordingId);
-    if (recording && recording.outputPath) {
+    if (recording?.outputPath) {
       lastHandledRecordingIdRef.current = recordingId;
       // Use a microtask to defer state updates to avoid synchronous setState in effect
       queueMicrotask(() => {
@@ -150,9 +151,24 @@ function ViewerPageContent() {
   const handleLoadedMetadata = () => {
     if (videoRef.current) {
       const loadedDuration = videoRef.current.duration;
+      if (videoRecording?.outputPath) {
+        const recordingDuration = videoRecording.duration || 0;
+        const browserDuration = Number.isFinite(loadedDuration) ? loadedDuration : 0;
+        setDuration(Math.max(recordingDuration, browserDuration));
+        return;
+      }
+
       setDuration(Number.isFinite(loadedDuration) ? loadedDuration : 0);
     }
   };
+
+  useEffect(() => {
+    if (videoRecording?.outputPath) {
+      setDuration(videoRecording.duration || 0);
+    } else if (videoRecording) {
+      setDuration(0);
+    }
+  }, [videoRecording]);
 
   const handleSeek = (_: Event, value: number | number[]) => {
     const time = value as number;
@@ -407,6 +423,7 @@ function ViewerPageContent() {
                 ref={videoRef}
                 src={`/api/recordings/${videoRecording.id}/stream`}
                 style={{ width: "100%", maxHeight: "70vh" }}
+                preload="metadata"
                 onTimeUpdate={handleTimeUpdate}
                 onLoadedMetadata={handleLoadedMetadata}
                 onLoadedData={() => setIsLoadingVideo(false)}
@@ -416,8 +433,9 @@ function ViewerPageContent() {
                 }}
                 onPlay={() => setIsPlaying(true)}
                 onPause={() => setIsPlaying(false)}
-                onEnded={() => setIsPlaying(false)}
-              />
+                onEnded={() => setIsPlaying(false)}>
+                <track kind="captions" label="No captions available" srcLang="en" src="data:text/vtt,WEBVTT%0A" />
+              </video>
 
               {isLivePlayback && !isVideoError && (
                 <Alert severity="info" sx={{ m: 2 }}>
@@ -482,7 +500,7 @@ function ViewerPageContent() {
                   <Typography variant="body2" sx={{ color: "white", minWidth: 100 }}>
                     {isLivePlayback
                       ? `${formatTime(currentTime)} / LIVE`
-                      : `${formatTime(currentTime)} / ${formatTime(duration)}`}
+                      : `${formatTime(currentTime)} / ${formatTime(duration || videoRecording?.duration || 0)}`}
                   </Typography>
 
                   <Box sx={{ flexGrow: 1 }} />

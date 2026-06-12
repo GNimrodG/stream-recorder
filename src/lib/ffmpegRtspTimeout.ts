@@ -1,9 +1,10 @@
 import { spawnSync } from "node:child_process";
 
-export type RtspTimeoutFlag = "-rw_timeout" | "-stimeout";
+export type RtspTimeoutFlag = "-timeout" | "-rw_timeout" | "-stimeout";
 
-const timeoutFlagOrder: Array<Exclude<RtspTimeoutFlag, "-timeout">> = ["-rw_timeout", "-stimeout"];
-const timeoutFlagPatterns: Record<Exclude<RtspTimeoutFlag, "-timeout">, RegExp> = {
+const timeoutFlagOrder: RtspTimeoutFlag[] = ["-timeout", "-rw_timeout", "-stimeout"];
+const timeoutFlagPatterns: Record<RtspTimeoutFlag, RegExp> = {
+  "-timeout": /^\s+-timeout\s+/m,
   "-rw_timeout": /^\s+-rw_timeout\s+/m,
   "-stimeout": /^\s+-stimeout\s+/m,
 };
@@ -51,8 +52,8 @@ function probeRtspTimeoutFlag(ffmpegPath: string): RtspTimeoutFlag {
     }
   }
 
-  console.warn(`Unable to determine the RTSP timeout flag for ${ffmpegPath}; defaulting to -stimeout.`);
-  return "-stimeout";
+  console.warn(`Unable to determine the RTSP timeout flag for ${ffmpegPath}; defaulting to -timeout.`);
+  return "-timeout";
 }
 
 export function resolveRtspTimeoutFlag(ffmpegPath: string): RtspTimeoutFlag {

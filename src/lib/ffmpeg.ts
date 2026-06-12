@@ -38,7 +38,10 @@ export function mergeRecordingParts(partPaths: string[], finalPath: string): boo
       }
       return exists;
     })
-    .map((p) => `file '${path.basename(p).replace(/'/g, "'\\''")}'`);
+    .map((p) => {
+      const escapedName = path.basename(p).replaceAll("'", String.raw`'\''`);
+      return String.raw`file '${escapedName}'`;
+    });
 
   if (!lines.length) {
     throw new Error("No valid part files found to merge");
@@ -89,6 +92,9 @@ export function mergeRecordingParts(partPaths: string[], finalPath: string): boo
       return false;
     } else if (res.status === 0) {
       console.log(`Merge completed successfully with final file size ${finalFileStats.size / 1024 / 1024} MB`);
+      if (path.extname(finalPath).toLowerCase() === ".mp4") {
+        remuxToFastStart(finalPath);
+      }
       // Delete source parts after successful merge
       for (const part of partPaths) {
         try {
@@ -112,6 +118,25 @@ export function mergeRecordingParts(partPaths: string[], finalPath: string): boo
   }
 
   return true;
+}
+
+function remuxToFastStart(filePath: string): void {
+  const settings = loadSettings();
+  const ffmpegPath = process.env.FFMPEG_PATH || settings.ffmpegPath || "ffmpeg";
+  const tempPath = `${filePath}.faststart.mp4`;
+
+  if (fs.existsSync(tempPath)) {
+    fs.unlinkSync(tempPath);
+  }
+
+  const args = ["-i", filePath, "-c", "copy", "-movflags", "+faststart", "-y", tempPath];
+  const res = spawnSync(ffmpegPath, args, { encoding: "utf-8" });
+
+  if (res.status !== 0) {
+    throw new Error(`FFmpeg faststart remux failed: ${res.stderr || res.stdout || "unknown error"}`);
+  }
+
+  fs.renameSync(tempPath, filePath);
 }
 
 // Build FFmpeg arguments based on settings

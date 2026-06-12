@@ -687,6 +687,14 @@ export default function RecordingsPageClient({
                                 <PlayCircleIcon />
                               </IconButton>
                             </Tooltip>
+                            <Tooltip title="Edit Video">
+                              <IconButton
+                                color="secondary"
+                                size="small"
+                                onClick={() => router.push(`/editor/${recording.id}`)}>
+                                <EditIcon />
+                              </IconButton>
+                            </Tooltip>
                             <Tooltip title="Download">
                               <IconButton
                                 color="primary"

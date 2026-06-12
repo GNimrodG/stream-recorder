@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRecordingById } from "@/lib/recordings";
-import fs from "fs";
-import path from "path";
-import { Readable } from "stream";
-import { spawn } from "child_process";
+import fs from "node:fs";
+import path from "node:path";
+import { spawn } from "node:child_process";
 import { RecordingManager } from "@/lib/RecordingManager";
 import { loadSettings } from "@/lib/settings";
 import { buildFFmpegArgsForPreview } from "@/lib/ffmpeg";
@@ -11,6 +10,10 @@ import { buildFFmpegArgsForPreview } from "@/lib/ffmpeg";
 export const runtime = "nodejs";
 
 const LIVE_STREAM_CONTENT_TYPE = "video/mp4";
+
+function createAbortError(): DOMException {
+  return new DOMException("The operation was aborted.", "AbortError");
+}
 
 const createLiveStream = (rtspUrl: string, request: NextRequest) => {
   const settings = loadSettings();
@@ -30,26 +33,38 @@ const createLiveStream = (rtspUrl: string, request: NextRequest) => {
     }
   };
 
-  request.signal.addEventListener("abort", killFFmpeg, { once: true });
+  const handleAbort = () => {
+    killFFmpeg();
+  };
+
+  request.signal.addEventListener("abort", handleAbort, { once: true });
 
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
+      const closeStream = () => {
+        if (!isClosed) {
+          isClosed = true;
+          controller.close();
+        }
+      };
+
+      const errorStream = (error: Error) => {
+        if (!isClosed) {
+          isClosed = true;
+          controller.error(error);
+        }
+      };
+
       ffmpeg.stdout.on("data", (chunk: Buffer) => {
         controller.enqueue(new Uint8Array(chunk));
       });
 
       ffmpeg.stdout.on("end", () => {
-        if (!isClosed) {
-          isClosed = true;
-          controller.close();
-        }
+        closeStream();
       });
 
       ffmpeg.stdout.on("error", (error) => {
-        if (!isClosed) {
-          isClosed = true;
-          controller.error(error);
-        }
+        errorStream(error);
       });
 
       ffmpeg.stderr.on("data", (data: Buffer) => {
@@ -61,17 +76,11 @@ const createLiveStream = (rtspUrl: string, request: NextRequest) => {
           console.error(`[recording-live-stream] ffmpeg exited with code ${code} and signal ${signal || "none"}`);
         }
 
-        if (!isClosed) {
-          isClosed = true;
-          controller.close();
-        }
+        closeStream();
       });
 
       ffmpeg.on("error", (error) => {
-        if (!isClosed) {
-          isClosed = true;
-          controller.error(error);
-        }
+        errorStream(error);
       });
     },
     cancel() {
@@ -79,7 +88,7 @@ const createLiveStream = (rtspUrl: string, request: NextRequest) => {
     },
   });
 
-  return new NextResponse(stream, {
+  const response = new NextResponse(stream, {
     headers: {
       "Content-Type": LIVE_STREAM_CONTENT_TYPE,
       "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
@@ -89,6 +98,17 @@ const createLiveStream = (rtspUrl: string, request: NextRequest) => {
       "X-Content-Type-Options": "nosniff",
     },
   });
+
+  request.signal.addEventListener(
+    "abort",
+    () => {
+      killFFmpeg();
+      request.signal.removeEventListener("abort", handleAbort);
+    },
+    { once: true },
+  );
+
+  return response;
 };
 
 const streamFile = (file: string, request: NextRequest) => {
@@ -118,8 +138,8 @@ const streamFile = (file: string, request: NextRequest) => {
 
     // Handle range request for video seeking
     const parts = range.replace(/bytes=/, "").split("-");
-    const start = parseInt(parts[0], 10);
-    const requestedEnd = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+    const start = Number.parseInt(parts[0], 10);
+    const requestedEnd = parts[1] ? Number.parseInt(parts[1], 10) : fileSize - 1;
 
     if (Number.isNaN(start) || start >= fileSize) {
       return new NextResponse(null, {
@@ -137,9 +157,38 @@ const streamFile = (file: string, request: NextRequest) => {
       start,
       end,
     });
-    const webStream: ReadableStream<Uint8Array> = Readable.toWeb(fileStream) as ReadableStream<Uint8Array>;
 
-    return new NextResponse(webStream, {
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        const abortHandler = () => {
+          fileStream.destroy(createAbortError());
+          controller.error(createAbortError());
+        };
+
+        const closeStream = () => controller.close();
+
+        request.signal.addEventListener("abort", abortHandler, { once: true });
+
+        fileStream.on("data", (chunk: string | Buffer) => {
+          controller.enqueue(typeof chunk === "string" ? new TextEncoder().encode(chunk) : new Uint8Array(chunk));
+        });
+
+        fileStream.on("end", () => {
+          request.signal.removeEventListener("abort", abortHandler);
+          closeStream();
+        });
+
+        fileStream.on("error", (error) => {
+          request.signal.removeEventListener("abort", abortHandler);
+          controller.error(error);
+        });
+      },
+      cancel() {
+        fileStream.destroy(createAbortError());
+      },
+    });
+
+    return new NextResponse(stream, {
       status: 206,
       headers: {
         "Content-Range": `bytes ${start}-${end}/${fileSize}`,
@@ -155,9 +204,36 @@ const streamFile = (file: string, request: NextRequest) => {
   // No range requested - return stream directly
   // This allows proper streaming for large files without buffering
   const fileStream = fs.createReadStream(file);
-  const webStream: ReadableStream<Uint8Array> = Readable.toWeb(fileStream) as ReadableStream<Uint8Array>;
 
-  return new NextResponse(webStream, {
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      const abortHandler = () => {
+        fileStream.destroy(createAbortError());
+        controller.error(createAbortError());
+      };
+
+      request.signal.addEventListener("abort", abortHandler, { once: true });
+
+      fileStream.on("data", (chunk: string | Buffer) => {
+        controller.enqueue(typeof chunk === "string" ? new TextEncoder().encode(chunk) : new Uint8Array(chunk));
+      });
+
+      fileStream.on("end", () => {
+        request.signal.removeEventListener("abort", abortHandler);
+        controller.close();
+      });
+
+      fileStream.on("error", (error) => {
+        request.signal.removeEventListener("abort", abortHandler);
+        controller.error(error);
+      });
+    },
+    cancel() {
+      fileStream.destroy(createAbortError());
+    },
+  });
+
+  return new NextResponse(stream, {
     headers: {
       "Content-Type": contentType,
       "Content-Length": fileSize.toString(),
