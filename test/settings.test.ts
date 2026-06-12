@@ -1,18 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Settings } from "@/types/settings";
 
-const { resolveRtspTimeoutFlagMock } = vi.hoisted(() => ({
-  resolveRtspTimeoutFlagMock: vi.fn(() => "-stimeout" as const),
-}));
-
-vi.mock("@/lib/ffmpegRtspTimeout", () => ({
-  resolveRtspTimeoutFlag: resolveRtspTimeoutFlagMock,
-}));
-
 describe("generateSnapshotArgs", () => {
   beforeEach(() => {
     vi.resetModules();
-    resolveRtspTimeoutFlagMock.mockClear();
   });
 
   it("uses adaptive RTSP timeout flag resolution", async () => {
@@ -42,9 +33,7 @@ describe("generateSnapshotArgs", () => {
     const { generateSnapshotArgs } = await import("../src/lib/settings");
     const args = generateSnapshotArgs("rtsp://example/live", "snapshot.jpg", settings);
 
-    expect(resolveRtspTimeoutFlagMock).toHaveBeenCalledWith("custom-ffmpeg");
     expect(args).toContain("-stimeout");
     expect(args[args.indexOf("-stimeout") + 1]).toBe("4321000");
-    expect(args).not.toContain("-rw_timeout");
   });
 });

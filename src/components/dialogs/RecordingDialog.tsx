@@ -43,7 +43,7 @@ export default function RecordingDialog({
   onFormChange,
   title = "Schedule New Recording",
   submitLabel = "Schedule Recording",
-}: RecordingDialogProps) {
+}: Readonly<RecordingDialogProps>) {
   const [selectedStreamId, setSelectedStreamId] = useState<string>("");
   const [savedStreams, setSavedStreams] = useState<SavedStream[]>([]);
 
@@ -53,6 +53,7 @@ export default function RecordingDialog({
         const response = await fetch("/api/streams");
         const data = await response.json();
         setSavedStreams(data);
+        setSelectedStreamId("");
       } catch (error) {
         console.error("Failed to fetch saved streams:", error);
       }

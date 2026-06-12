@@ -26,8 +26,8 @@ export async function GET(request?: Request) {
       signal?.addEventListener("abort", onAbort);
 
       try {
-        // Check streams sequentially per host, sending results as they arrive
-        for (const streamData of streams) {
+        // Check streams sequentially per host, sending results as they arrive, and prioritize favorites first
+        for (const streamData of streams.toSorted((a, b) => (a.favorite === b.favorite ? 0 : a.favorite ? -1 : 1))) {
           // stop if client disconnected
           if (signal?.aborted) break;
 

@@ -91,7 +91,7 @@ export default function RecordingsPageClient({
   initialStatus,
   initialName,
   initialRtspUrl,
-}: Props) {
+}: Readonly<Props>) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -294,7 +294,7 @@ export default function RecordingsPageClient({
   };
 
   const handleUpdateRecording = async () => {
-    if (!recordingDialogState || recordingDialogState.mode !== "edit") return;
+    if (recordingDialogState?.mode !== "edit") return;
 
     const editingRecordingId = recordingDialogState.recording.id;
 
