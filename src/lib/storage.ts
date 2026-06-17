@@ -36,18 +36,24 @@ export async function getTotalStorageUsed(): Promise<number> {
 
 /**
  * Get the available storage in the filesystem where recordings are stored
- * @returns Available storage in GB, or 0 if it cannot be determined
+ * @returns {{totalGB: number, availableGB: number, usedGB: number}}
  */
-export async function getStorageSpaceInFS(): Promise<number> {
+export async function getStorageSpaceInFS(): Promise<{ totalGB: number; availableGB: number; usedGB: number }> {
   const settings = loadSettings();
 
   try {
     const stats = await fs.statfs(settings.outputDirectory);
     const total = stats.blocks * stats.bsize;
-    return total / 1024 ** 3; // Convert to GB
+    const available = stats.bavail * stats.bsize;
+    const used = total - available;
+    return {
+      totalGB: total / 1024 ** 3,
+      availableGB: available / 1024 ** 3,
+      usedGB: used / 1024 ** 3,
+    };
   } catch (error) {
     console.error("Failed to get available storage in filesystem:", error);
-    return 0;
+    return { totalGB: 0, availableGB: 0, usedGB: 0 };
   }
 }
 
@@ -195,23 +201,24 @@ export async function runStorageCleanup(): Promise<{
 /**
  * Get storage statistics
  */
-export async function getStorageStats(): Promise<{
-  usedGB: number;
-  maxGB: number;
-  availableGB: number;
-  percentage: number;
-  autoDeleteDays: number;
-}> {
+export async function getStorageStats() {
   const settings = loadSettings();
-  const usedGB = await getTotalStorageUsed();
-  const availableGB = await getStorageSpaceInFS();
-  const maxGB = settings.maxStorageGB || availableGB;
-  const percentage = maxGB > 0 ? (usedGB / maxGB) * 100 : 0;
+  const storageSpace = await getStorageSpaceInFS();
+  const localUsedGB = await getTotalStorageUsed();
+  const exeternalUsageGB = storageSpace.usedGB - localUsedGB; // Calculate external usage (used by other files in the output directory)
+  const maxGB = settings.maxStorageGB || storageSpace.totalGB - exeternalUsageGB; // Adjust maxGB based on external usage
+  const percentage = maxGB > 0 ? (localUsedGB / maxGB) * 100 : 0;
+  const percentageExternal = storageSpace.totalGB > 0 ? (exeternalUsageGB / storageSpace.totalGB) * 100 : 0;
+
+  // if the maxGB is set less than the total - exeternalUsageGB, then we can ignore the external usage percentage, otherwise we show it
+  const shouldHideExternalUsage = maxGB < storageSpace.totalGB - exeternalUsageGB;
 
   return {
-    usedGB,
+    ...storageSpace,
+    localUsedGB,
+    exeternalUsageGB: shouldHideExternalUsage ? 0 : exeternalUsageGB,
+    percentageExternal: shouldHideExternalUsage ? 0 : percentageExternal,
     maxGB,
-    availableGB,
     percentage,
     autoDeleteDays: settings.autoDeleteAfterDays,
   };

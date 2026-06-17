@@ -3,21 +3,28 @@ import LinearProgress, { LinearProgressProps } from "@mui/material/LinearProgres
 import Typography from "@mui/material/Typography";
 import { useId } from "react";
 
-export function LinearProgressWithLabelAndValue(props: LinearProgressProps & { value: number }) {
+export function LinearProgressWithLabelAndValue(props: LinearProgressProps & { value: number; valueBuffer?: number }) {
   const progressId = useId();
   return (
     <Box sx={{ ...props.sx, display: "flex", alignItems: "center" }}>
       <Box sx={{ width: "100%", mr: 1 }}>
         <LinearProgress
-          variant="determinate"
           aria-labelledby={progressId}
           {...props}
-          sx={{ height: 8, borderRadius: 1 }}
+          value={Math.min(props.value, 100)}
+          sx={{
+            height: 8,
+            borderRadius: 1,
+            ["& .MuiLinearProgress-dashed"]: {
+              background: (theme) => theme.palette.background.paper,
+              animation: "none",
+            },
+          }}
         />
       </Box>
-      <Box sx={{ minWidth: 35 }}>
+      <Box sx={{ minWidth: props.valueBuffer ? 60 : 35 }}>
         <Typography variant="body2" sx={{ color: "text.secondary" }}>
-          {`${Math.round(props.value)}%`}
+          {`${Math.round(props.value)}%`} {!!props.valueBuffer && `(${Math.round(props.valueBuffer - props.value)}%)`}
         </Typography>
       </Box>
     </Box>

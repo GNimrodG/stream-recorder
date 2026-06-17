@@ -557,16 +557,16 @@ export default function SettingsPageClient({
                   <NumberField
                     fullWidth
                     label="Max Storage"
-                    max={storageStats.availableGB}
+                    max={storageStats.totalGB}
                     value={settings.maxStorageGB || null}
                     onValueChange={(v) => handleChange("maxStorageGB", v ?? 0)}
                     slotProps={{
                       input: {
                         endAdornment: <InputAdornment position="end">GB</InputAdornment>,
-                        placeholder: `Available: ${storageStats.availableGB.toFixed(2)} GB`,
+                        placeholder: `Available: ${storageStats.totalGB.toFixed(2)} GB`,
                       },
                     }}
-                    helperText={`Set to 0 to disable. Available space: ${storageStats.availableGB.toFixed(2)} GB`}
+                    helperText={`Set to 0 to disable. Available space: ${storageStats.totalGB.toFixed(2)} GB`}
                   />
                 </Grid>
                 <Grid size={{ xs: 6 }}>
@@ -598,14 +598,29 @@ export default function SettingsPageClient({
                           Storage Used
                         </Typography>
                         <Typography variant="body2" fontWeight="medium">
-                          {storageStats.usedGB.toFixed(2)} GB
+                          {storageStats.localUsedGB.toFixed(2)} GB{" "}
+                          {!!storageStats.exeternalUsageGB && (
+                            <Typography
+                              variant="body2"
+                              color="text.secondary"
+                              component="span">{` (External: ${storageStats.exeternalUsageGB.toFixed(2)} GB)`}</Typography>
+                          )}
                           {storageStats.maxGB > 0 && ` / ${storageStats.maxGB.toFixed(2)} GB`}
                         </Typography>
                       </Box>
                       {storageStats.maxGB > 0 && (
                         <LinearProgressWithLabelAndValue
-                          variant="determinate"
-                          value={Math.min(storageStats.percentage, 100)}
+                          variant="buffer"
+                          value={storageStats.percentage}
+                          valueBuffer={
+                            storageStats.percentageExternal
+                              ? Math.min(storageStats.percentage, 100) + Math.min(storageStats.percentageExternal, 100)
+                              : 0
+                          }
+                          aria-label="Storage Usage"
+                          aria-valuenow={storageStats.percentage}
+                          aria-valuemin={0}
+                          aria-valuemax={100}
                           color={
                             storageStats.percentage > 90
                               ? "error"
