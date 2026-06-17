@@ -22,8 +22,8 @@ export function LinearProgressWithLabelAndValue(props: LinearProgressProps & { v
           }}
         />
       </Box>
-      <Box sx={{ minWidth: props.valueBuffer ? 60 : 35 }}>
-        <Typography variant="body2" sx={{ color: "text.secondary" }}>
+      <Box sx={{ minWidth: props.valueBuffer ? 70 : 35 }}>
+        <Typography variant="body2" sx={{ color: "text.secondary" }} noWrap id={progressId}>
           {`${Math.round(props.value)}%`} {!!props.valueBuffer && `(${Math.round(props.valueBuffer - props.value)}%)`}
         </Typography>
       </Box>
