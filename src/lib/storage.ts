@@ -206,7 +206,7 @@ export async function getStorageStats() {
   const storageSpace = await getStorageSpaceInFS();
   const localUsedGB = await getTotalStorageUsed();
   const exeternalUsageGB = storageSpace.usedGB - localUsedGB; // Calculate external usage (used by other files in the output directory)
-  const maxGB = settings.maxStorageGB || storageSpace.totalGB - exeternalUsageGB; // Adjust maxGB based on external usage
+  const maxGB = settings.maxStorageGB || storageSpace.totalGB; // Adjust maxGB based on external usage
   const percentage = maxGB > 0 ? (localUsedGB / maxGB) * 100 : 0;
   const percentageExternal = storageSpace.totalGB > 0 ? (exeternalUsageGB / storageSpace.totalGB) * 100 : 0;
 
