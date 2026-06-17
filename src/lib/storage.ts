@@ -34,13 +34,17 @@ export async function getTotalStorageUsed(): Promise<number> {
   return totalBytes / (1024 * 1024 * 1024);
 }
 
-export async function getAvailableStorageInFS(): Promise<number> {
+/**
+ * Get the available storage in the filesystem where recordings are stored
+ * @returns Available storage in GB, or 0 if it cannot be determined
+ */
+export async function getStorageSpaceInFS(): Promise<number> {
   const settings = loadSettings();
 
   try {
     const stats = await fs.statfs(settings.outputDirectory);
-    const free = stats.bfree * stats.bsize;
-    return free / (1024 * 1024 * 1024); // Convert to GB
+    const total = stats.blocks * stats.bsize;
+    return total / 1024 ** 3; // Convert to GB
   } catch (error) {
     console.error("Failed to get available storage in filesystem:", error);
     return 0;
@@ -200,7 +204,7 @@ export async function getStorageStats(): Promise<{
 }> {
   const settings = loadSettings();
   const usedGB = await getTotalStorageUsed();
-  const availableGB = await getAvailableStorageInFS();
+  const availableGB = await getStorageSpaceInFS();
   const maxGB = settings.maxStorageGB || availableGB;
   const percentage = maxGB > 0 ? (usedGB / maxGB) * 100 : 0;
 
