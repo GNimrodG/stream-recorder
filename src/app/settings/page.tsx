@@ -12,7 +12,7 @@ export default async function SettingsPage() {
   const hwInfo = detectHardwareAcceleration();
 
   // Get storage statistics
-  const storageStats = getStorageStats();
+  const storageStats = await getStorageStats();
 
   // Check for Docker environment and env vars
   const isDocker = !!process.env.DOCKER_ENV;

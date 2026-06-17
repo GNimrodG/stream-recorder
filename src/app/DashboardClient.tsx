@@ -45,9 +45,10 @@ import DurationDisplay from "@/components/DurationDisplay";
 type Props = {
   initialRecordings: RecordingWithStatus[];
   initialStats: RecordingStats;
+  storageStats: Awaited<ReturnType<typeof import("@/lib/storage").getStorageStats>>;
 };
 
-export default function DashboardClient({ initialRecordings, initialStats }: Props) {
+export default function DashboardClient({ initialRecordings, initialStats, storageStats }: Readonly<Props>) {
   const timelineRef = useRef<RecordingTimelineHandle>(null);
   const [recordings, setRecordings] = useState<RecordingWithStatus[]>(initialRecordings);
   const [stats, setStats] = useState<RecordingStats>(initialStats);
@@ -130,9 +131,9 @@ export default function DashboardClient({ initialRecordings, initialStats }: Pro
     const updateCurrentTime = () => setCurrentTime(new Date().toISOString());
 
     updateCurrentTime();
-    const intervalId = window.setInterval(updateCurrentTime, 1000);
+    const intervalId = globalThis.setInterval(updateCurrentTime, 1000);
 
-    return () => window.clearInterval(intervalId);
+    return () => globalThis.clearInterval(intervalId);
   }, []);
 
   const handleCreateRecording = async () => {
@@ -274,6 +275,20 @@ export default function DashboardClient({ initialRecordings, initialStats }: Pro
             </IconButton>
           </Tooltip>
         </Box>
+
+        {storageStats.percentage > 90 && (
+          <Alert severity="error" sx={{ mb: 2 }} variant="filled">
+            Warning: Storage usage is {storageStats.percentage.toFixed(1)}%. ({storageStats.usedGB.toFixed(2)} GB /{" "}
+            {storageStats.maxGB.toFixed(2)} GB)
+          </Alert>
+        )}
+
+        {storageStats.percentage > 75 && storageStats.percentage <= 90 && (
+          <Alert severity="warning" sx={{ mb: 2 }} variant="outlined">
+            Warning: Storage usage is {storageStats.percentage.toFixed(1)}%. ({storageStats.usedGB.toFixed(2)} GB /{" "}
+            {storageStats.maxGB.toFixed(2)} GB)
+          </Alert>
+        )}
 
         <Grid container spacing={3}>
           {[

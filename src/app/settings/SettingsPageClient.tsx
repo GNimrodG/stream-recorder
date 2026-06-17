@@ -16,7 +16,6 @@ import {
   IconButton,
   InputAdornment,
   InputLabel,
-  LinearProgress,
   MenuItem,
   Paper,
   Select,
@@ -40,6 +39,8 @@ import DeleteSweepIcon from "@mui/icons-material/DeleteSweep";
 import { Settings } from "@/types/settings";
 import NumberField from "@/components/inputs/NumberField";
 import FormHelperText from "@mui/material/FormHelperText";
+import type { getStorageStats } from "@/lib/storage";
+import { LinearProgressWithLabelAndValue } from "@/components/LinearProgressWithLabelAndValue";
 
 interface HardwareAccelInfo {
   nvidia: boolean;
@@ -51,12 +52,7 @@ interface HardwareAccelInfo {
 interface SettingsPageClientProps {
   initialSettings: Settings;
   initialHwInfo: HardwareAccelInfo;
-  initialStorageStats: {
-    usedGB: number;
-    maxGB: number;
-    percentage: number;
-    autoDeleteDays: number;
-  };
+  initialStorageStats: Awaited<ReturnType<typeof getStorageStats>>;
   isDocker: boolean;
   envVars: {
     FFMPEG_PATH: string | null;
@@ -70,7 +66,7 @@ export default function SettingsPageClient({
   initialStorageStats,
   isDocker,
   envVars,
-}: SettingsPageClientProps) {
+}: Readonly<SettingsPageClientProps>) {
   const [settings, setSettings] = useState<Settings>(initialSettings);
   const [hwInfo, setHwInfo] = useState<HardwareAccelInfo>(initialHwInfo);
   const [storageStats, setStorageStats] = useState(initialStorageStats);
@@ -134,6 +130,7 @@ export default function SettingsPageClient({
       });
     } finally {
       setSaving(false);
+      fetchStorageStats();
     }
   };
 
@@ -267,9 +264,7 @@ export default function SettingsPageClient({
                 <Select
                   value={settings.hardwareAcceleration}
                   label="Hardware Acceleration"
-                  onChange={(e) =>
-                    handleChange("hardwareAcceleration", e.target.value as Settings["hardwareAcceleration"])
-                  }>
+                  onChange={(e) => handleChange("hardwareAcceleration", e.target.value)}>
                   <MenuItem value="auto">Auto Detect</MenuItem>
                   <MenuItem value="nvidia" disabled={!hwInfo?.nvidia}>
                     NVIDIA (NVENC/CUDA)
@@ -315,7 +310,7 @@ export default function SettingsPageClient({
                 <Select
                   value={settings.logLevel}
                   label="FFmpeg log level"
-                  onChange={(e) => handleChange("logLevel", e.target.value as Settings["logLevel"])}>
+                  onChange={(e) => handleChange("logLevel", e.target.value)}>
                   <MenuItem value="quiet">Quiet</MenuItem>
                   <MenuItem value="panic">Panic</MenuItem>
                   <MenuItem value="fatal">Fatal</MenuItem>
@@ -350,7 +345,7 @@ export default function SettingsPageClient({
                     <Select
                       value={settings.outputFormat}
                       label="Output Format"
-                      onChange={(e) => handleChange("outputFormat", e.target.value as Settings["outputFormat"])}>
+                      onChange={(e) => handleChange("outputFormat", e.target.value)}>
                       <MenuItem value="mp4">MP4</MenuItem>
                       <MenuItem value="mkv">MKV</MenuItem>
                       <MenuItem value="avi">AVI</MenuItem>
@@ -364,7 +359,7 @@ export default function SettingsPageClient({
                     <Select
                       value={settings.videoCodec}
                       label="Video Codec"
-                      onChange={(e) => handleChange("videoCodec", e.target.value as Settings["videoCodec"])}>
+                      onChange={(e) => handleChange("videoCodec", e.target.value)}>
                       <MenuItem value="copy">Copy (No re-encoding)</MenuItem>
                       <MenuItem value="h264">H.264</MenuItem>
                       <MenuItem value="h265">H.265 (HEVC)</MenuItem>
@@ -378,7 +373,7 @@ export default function SettingsPageClient({
                     <Select
                       value={settings.audioCodec}
                       label="Audio Codec"
-                      onChange={(e) => handleChange("audioCodec", e.target.value as Settings["audioCodec"])}>
+                      onChange={(e) => handleChange("audioCodec", e.target.value)}>
                       <MenuItem value="copy">Copy (No re-encoding)</MenuItem>
                       <MenuItem value="aac">AAC</MenuItem>
                       <MenuItem value="mp3">MP3</MenuItem>
@@ -392,7 +387,7 @@ export default function SettingsPageClient({
                     <Select
                       value={settings.rtspTransport}
                       label="RTSP Transport"
-                      onChange={(e) => handleChange("rtspTransport", e.target.value as Settings["rtspTransport"])}>
+                      onChange={(e) => handleChange("rtspTransport", e.target.value)}>
                       <MenuItem value="tcp">TCP</MenuItem>
                       <MenuItem value="udp">UDP</MenuItem>
                       <MenuItem value="http">HTTP</MenuItem>
@@ -562,14 +557,16 @@ export default function SettingsPageClient({
                   <NumberField
                     fullWidth
                     label="Max Storage"
-                    value={settings.maxStorageGB}
+                    max={storageStats.availableGB}
+                    value={settings.maxStorageGB || null}
                     onValueChange={(v) => handleChange("maxStorageGB", v ?? 0)}
                     slotProps={{
                       input: {
                         endAdornment: <InputAdornment position="end">GB</InputAdornment>,
+                        placeholder: `Available: ${storageStats.availableGB.toFixed(2)} GB`,
                       },
                     }}
-                    helperText="Set to 0 for unlimited storage"
+                    helperText={`Set to 0 to disable. Available space: ${storageStats.availableGB.toFixed(2)} GB`}
                   />
                 </Grid>
                 <Grid size={{ xs: 6 }}>
@@ -590,7 +587,7 @@ export default function SettingsPageClient({
                 {/* Storage Stats Display */}
                 {storageStats && (
                   <Grid size={{ xs: 12 }}>
-                    <Box sx={{ mt: 2 }}>
+                    <Box>
                       <Box
                         sx={{
                           display: "flex",
@@ -602,11 +599,11 @@ export default function SettingsPageClient({
                         </Typography>
                         <Typography variant="body2" fontWeight="medium">
                           {storageStats.usedGB.toFixed(2)} GB
-                          {storageStats.maxGB > 0 && ` / ${storageStats.maxGB} GB`}
+                          {storageStats.maxGB > 0 && ` / ${storageStats.maxGB.toFixed(2)} GB`}
                         </Typography>
                       </Box>
                       {storageStats.maxGB > 0 && (
-                        <LinearProgress
+                        <LinearProgressWithLabelAndValue
                           variant="determinate"
                           value={Math.min(storageStats.percentage, 100)}
                           color={
@@ -616,7 +613,7 @@ export default function SettingsPageClient({
                                 ? "warning"
                                 : "primary"
                           }
-                          sx={{ height: 8, borderRadius: 1, mb: 2 }}
+                          sx={{ mb: 1 }}
                         />
                       )}
                       <Button
@@ -663,7 +660,7 @@ export default function SettingsPageClient({
                     <Select
                       value={settings.previewQuality}
                       label="Preview Quality"
-                      onChange={(e) => handleChange("previewQuality", e.target.value as Settings["previewQuality"])}>
+                      onChange={(e) => handleChange("previewQuality", e.target.value)}>
                       <MenuItem value="low">Low (320p)</MenuItem>
                       <MenuItem value="medium">Medium (640p)</MenuItem>
                       <MenuItem value="high">High (1280p)</MenuItem>

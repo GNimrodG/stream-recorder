@@ -5,9 +5,9 @@ import {
   RecordingStats,
   RecordingWithStatus,
 } from "@/types/recording";
-import { randomUUID } from "crypto";
-import fs from "fs";
-import path from "path";
+import { randomUUID } from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
 import { RecordingManager } from "@/lib/RecordingManager";
 import { runStorageCleanup } from "@/lib/storage";
 

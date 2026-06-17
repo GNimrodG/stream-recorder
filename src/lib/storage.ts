@@ -1,19 +1,28 @@
-import fs from "node:fs";
+import fs from "node:fs/promises";
 import { loadSettings } from "@/lib/settings";
 import { getAllRecordings, saveRecordings } from "@/lib/recordings";
 import { Recording } from "@/types/recording";
 
+async function existsAsync(path: string): Promise<boolean> {
+  try {
+    await fs.access(path, fs.constants.F_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Get the total size of all recordings in GB
  */
-export function getTotalStorageUsed(): number {
+export async function getTotalStorageUsed(): Promise<number> {
   const recordings = getAllRecordings();
   let totalBytes = 0;
 
   for (const recording of recordings) {
-    if (recording.outputPath && fs.existsSync(recording.outputPath)) {
+    if (recording.outputPath && (await existsAsync(recording.outputPath))) {
       try {
-        const stats = fs.statSync(recording.outputPath);
+        const stats = await fs.stat(recording.outputPath);
         totalBytes += stats.size;
       } catch (error) {
         console.error(`Failed to get size for ${recording.outputPath}:`, error);
@@ -25,11 +34,24 @@ export function getTotalStorageUsed(): number {
   return totalBytes / (1024 * 1024 * 1024);
 }
 
+export async function getAvailableStorageInFS(): Promise<number> {
+  const settings = loadSettings();
+
+  try {
+    const stats = await fs.statfs(settings.outputDirectory);
+    const free = stats.bfree * stats.bsize;
+    return free / (1024 * 1024 * 1024); // Convert to GB
+  } catch (error) {
+    console.error("Failed to get available storage in filesystem:", error);
+    return 0;
+  }
+}
+
 /**
  * Delete old recordings based on autoDeleteAfterDays setting
  * Returns the number of recordings deleted
  */
-export function cleanupOldRecordings(): number {
+export async function cleanupOldRecordings(): Promise<number> {
   const settings = loadSettings();
 
   // If autoDeleteAfterDays is 0 or negative, don't delete anything
@@ -50,9 +72,9 @@ export function cleanupOldRecordings(): number {
       const completedDate = new Date(recording.completedAt);
       if (completedDate < cutoffDate) {
         // Delete the file
-        if (recording.outputPath && fs.existsSync(recording.outputPath)) {
+        if (recording.outputPath && (await existsAsync(recording.outputPath))) {
           try {
-            fs.unlinkSync(recording.outputPath);
+            await fs.unlink(recording.outputPath);
             console.log(`Auto-deleted old recording: ${recording.name} (${recording.outputPath})`);
           } catch (error) {
             console.error(`Failed to delete ${recording.outputPath}:`, error);
@@ -80,7 +102,7 @@ export function cleanupOldRecordings(): number {
  * Delete oldest recordings until storage is under maxStorageGB limit
  * Returns the number of recordings deleted
  */
-export function enforceStorageLimit(): number {
+export async function enforceStorageLimit(): Promise<number> {
   const settings = loadSettings();
 
   // If maxStorageGB is 0, don't enforce limit
@@ -88,7 +110,7 @@ export function enforceStorageLimit(): number {
     return 0;
   }
 
-  let currentStorageGB = getTotalStorageUsed();
+  let currentStorageGB = await getTotalStorageUsed();
 
   // If we're under the limit, nothing to do
   if (currentStorageGB <= settings.maxStorageGB) {
@@ -113,12 +135,12 @@ export function enforceStorageLimit(): number {
       break;
     }
 
-    if (recording.outputPath && fs.existsSync(recording.outputPath)) {
+    if (recording.outputPath && (await existsAsync(recording.outputPath))) {
       try {
-        const stats = fs.statSync(recording.outputPath);
+        const stats = await fs.stat(recording.outputPath);
         const fileGB = stats.size / (1024 * 1024 * 1024);
 
-        fs.unlinkSync(recording.outputPath);
+        await fs.unlink(recording.outputPath);
         console.log(`Deleted recording to free space: ${recording.name} (${fileGB.toFixed(2)} GB)`);
 
         currentStorageGB -= fileGB;
@@ -148,16 +170,16 @@ export function enforceStorageLimit(): number {
 /**
  * Run all cleanup tasks
  */
-export function runStorageCleanup(): {
+export async function runStorageCleanup(): Promise<{
   deletedOld: number;
   deletedForSpace: number;
   currentStorageGB: number;
-} {
+}> {
   console.log("Running storage cleanup...");
 
-  const deletedOld = cleanupOldRecordings();
-  const deletedForSpace = enforceStorageLimit();
-  const currentStorageGB = getTotalStorageUsed();
+  const deletedOld = await cleanupOldRecordings();
+  const deletedForSpace = await enforceStorageLimit();
+  const currentStorageGB = await getTotalStorageUsed();
 
   console.log(
     `Cleanup complete: ${deletedOld} old recordings, ${deletedForSpace} for space, ${currentStorageGB.toFixed(2)} GB used`,
@@ -169,20 +191,23 @@ export function runStorageCleanup(): {
 /**
  * Get storage statistics
  */
-export function getStorageStats(): {
+export async function getStorageStats(): Promise<{
   usedGB: number;
   maxGB: number;
+  availableGB: number;
   percentage: number;
   autoDeleteDays: number;
-} {
+}> {
   const settings = loadSettings();
-  const usedGB = getTotalStorageUsed();
-  const maxGB = settings.maxStorageGB;
+  const usedGB = await getTotalStorageUsed();
+  const availableGB = await getAvailableStorageInFS();
+  const maxGB = settings.maxStorageGB || availableGB;
   const percentage = maxGB > 0 ? (usedGB / maxGB) * 100 : 0;
 
   return {
     usedGB,
     maxGB,
+    availableGB,
     percentage,
     autoDeleteDays: settings.autoDeleteAfterDays,
   };
