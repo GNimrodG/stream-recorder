@@ -2,6 +2,7 @@ import DashboardClient from "@/app/DashboardClient";
 import { getAllRecordingsWithStats, getRecordingStats } from "@/lib/recordings";
 import { ensureAppRuntimeInitialized } from "@/lib/runtime";
 import { getStorageStats } from "@/lib/storage";
+import { formatDate } from "@/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -14,8 +15,14 @@ export default async function DashboardPage() {
   const initialStats = getRecordingStats();
 
   const storageStats = await getStorageStats();
+  const initialNow = new Date().toISOString();
 
   return (
-    <DashboardClient initialRecordings={initialRecordings} initialStats={initialStats} storageStats={storageStats} />
+    <DashboardClient
+      initialRecordings={initialRecordings}
+      initialStats={initialStats}
+      storageStats={storageStats}
+      initialNow={{ iso: initialNow, label: formatDate(initialNow) }}
+    />
   );
 }

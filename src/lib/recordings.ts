@@ -14,6 +14,29 @@ import { runStorageCleanup } from "@/lib/storage";
 const RECORDINGS_FILE = process.env.RECORDINGS_DB_PATH || "./data/recordings.json";
 const RECORDINGS_OUTPUT_DIR = process.env.RECORDINGS_OUTPUT_DIR || "./recordings";
 
+type RecordingsCacheState = {
+  filePath: string;
+  recordings: Recording[] | null;
+  fileModifiedTime: number;
+};
+
+type RecordingsCacheGlobal = typeof globalThis & {
+  __streamRecorderRecordingsCache?: RecordingsCacheState;
+};
+
+// Server component and API route bundles can have separate module caches.
+// Store the JSON cache process-wide so both bundles use the same array and
+// modification timestamp, including memory-only updates.
+const recordingsCacheGlobal = globalThis as RecordingsCacheGlobal;
+const recordingsCache =
+  recordingsCacheGlobal.__streamRecorderRecordingsCache?.filePath === RECORDINGS_FILE
+    ? recordingsCacheGlobal.__streamRecorderRecordingsCache
+    : (recordingsCacheGlobal.__streamRecorderRecordingsCache = {
+        filePath: RECORDINGS_FILE,
+        recordings: null,
+        fileModifiedTime: 0,
+      });
+
 // Cleanup scheduler
 let cleanupInterval: NodeJS.Timeout | null = null;
 let initialized = false;
@@ -51,17 +74,13 @@ function ensureDirectories() {
   }
 }
 
-// Cache for recordings to minimize file I/O
-let recordingsCache: Recording[] | null = null;
-let cachedFileModifiedTime: number = 0;
-
 // Load recordings from file
 function loadRecordings(): Recording[] {
   ensureDirectories();
 
   if (!fs.existsSync(RECORDINGS_FILE)) {
-    recordingsCache = [];
-    cachedFileModifiedTime = 0;
+    recordingsCache.recordings = [];
+    recordingsCache.fileModifiedTime = 0;
     return [];
   }
 
@@ -71,18 +90,19 @@ function loadRecordings(): Recording[] {
     const fileModifiedTime = stats.mtimeMs;
 
     // Use cache if it exists and file hasn't been modified
-    if (recordingsCache && fileModifiedTime === cachedFileModifiedTime) {
-      return recordingsCache;
+    if (recordingsCache.recordings && fileModifiedTime === recordingsCache.fileModifiedTime) {
+      return recordingsCache.recordings;
     }
 
     // File has been modified or no cache exists, read from disk
     const data = fs.readFileSync(RECORDINGS_FILE, "utf-8");
-    recordingsCache = JSON.parse(data);
-    cachedFileModifiedTime = fileModifiedTime;
-    return recordingsCache!;
+    const recordings = JSON.parse(data) as Recording[];
+    recordingsCache.recordings = recordings;
+    recordingsCache.fileModifiedTime = fileModifiedTime;
+    return recordings;
   } catch {
-    recordingsCache = [];
-    cachedFileModifiedTime = 0;
+    recordingsCache.recordings = [];
+    recordingsCache.fileModifiedTime = 0;
     return [];
   }
 }
@@ -93,7 +113,7 @@ function loadRecordings(): Recording[] {
  * @param writeToDisk - whether to write to disk or just update in-memory cache (default: true)
  */
 export function saveRecordings(recordings: Recording[], writeToDisk = true): void {
-  recordingsCache = recordings;
+  recordingsCache.recordings = recordings;
 
   if (!writeToDisk) return;
 
@@ -103,9 +123,9 @@ export function saveRecordings(recordings: Recording[], writeToDisk = true): voi
   // Update cached file modified time after writing
   try {
     const stats = fs.statSync(RECORDINGS_FILE);
-    cachedFileModifiedTime = stats.mtimeMs;
+    recordingsCache.fileModifiedTime = stats.mtimeMs;
   } catch {
-    cachedFileModifiedTime = 0;
+    recordingsCache.fileModifiedTime = 0;
   }
 }
 
@@ -212,6 +232,7 @@ export function createRecording(data: {
     sourceStreamId: data.sourceStreamId,
     autoStopWhenStreamOffline: data.autoStopWhenStreamOffline,
     ignoreDuration: data.ignoreDuration,
+    attemptPaths: [],
     createdAt: now,
     updatedAt: now,
   };
@@ -351,5 +372,6 @@ function createRecordingManager(recording: Recording): RecordingManager {
     recording.startTime,
     recording.duration,
     recording.ignoreDuration,
+    recording.attemptPaths,
   );
 }

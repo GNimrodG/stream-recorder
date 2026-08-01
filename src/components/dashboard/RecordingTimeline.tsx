@@ -29,14 +29,14 @@ type TimelineLaneBar = {
   endDiff: number;
 };
 
-const getTimelineEndMs = (recording: RecordingWithStatus): number => {
+const getTimelineEndMs = (recording: RecordingWithStatus, nowMs: number): number => {
   const startMs = new Date(recording.startTime).getTime();
   const plannedEndMs = startMs + Math.max(0, recording.duration) * 1000;
 
   if (NOT_FINISHED_STATES.has(recording.status)) {
     // if the recording is still active and ignoreDuration is set with the planned end time in the past, use the current time as the end time to reflect that it's still ongoing
-    if (recording.ignoreDuration && Date.now() > plannedEndMs) {
-      return Date.now();
+    if (recording.ignoreDuration && nowMs > plannedEndMs) {
+      return nowMs;
     }
 
     return plannedEndMs;
@@ -80,7 +80,7 @@ const getNextLocalDayStartMs = (dayStartMs: number): number => {
   return date.getTime();
 };
 
-const createTimelineModel = (recordings: RecordingWithStatus[]) => {
+const createTimelineModel = (recordings: RecordingWithStatus[], nowMs: number) => {
   if (!recordings.length) return null;
 
   const points: TimelinePoint[] = [];
@@ -92,7 +92,7 @@ const createTimelineModel = (recordings: RecordingWithStatus[]) => {
       points.push({
         recording,
         startMin: Math.floor(startMs / MS_PER_MINUTE) * MS_PER_MINUTE,
-        endMin: Math.ceil(getTimelineEndMs(recording) / MS_PER_MINUTE) * MS_PER_MINUTE,
+        endMin: Math.ceil(getTimelineEndMs(recording, nowMs) / MS_PER_MINUTE) * MS_PER_MINUTE,
       });
     }
   }
@@ -100,8 +100,8 @@ const createTimelineModel = (recordings: RecordingWithStatus[]) => {
   if (!points.length) return null;
 
   // Calculate timeline bounds
-  let minStartMin = Math.floor(Date.now() / MS_PER_DAY) * MS_PER_DAY;
-  let maxEndMin = Math.ceil(Date.now() / MS_PER_DAY) * MS_PER_DAY;
+  let minStartMin = Math.floor(nowMs / MS_PER_DAY) * MS_PER_DAY;
+  let maxEndMin = Math.ceil(nowMs / MS_PER_DAY) * MS_PER_DAY;
   for (const point of points) {
     minStartMin = Math.min(minStartMin, point.startMin);
     maxEndMin = Math.max(maxEndMin, point.endMin);
@@ -187,6 +187,7 @@ const createTimelineModel = (recordings: RecordingWithStatus[]) => {
 
 type RecordingTimelineProps = {
   recordings: RecordingWithStatus[];
+  initialNowMs: number;
 };
 
 export type RecordingTimelineHandle = {
@@ -194,14 +195,15 @@ export type RecordingTimelineHandle = {
   scrollToNextRecording: () => void;
 };
 
-const RecordingTimeline = forwardRef<RecordingTimelineHandle, RecordingTimelineProps>(({ recordings }, ref) => {
+const RecordingTimeline = forwardRef<RecordingTimelineHandle, RecordingTimelineProps>(({ recordings, initialNowMs }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const hourRefsMap = useRef<Map<number, HTMLDivElement>>(new Map());
-  const [currentTime, setCurrentTime] = useState<number | null>(null);
+  const [currentTime, setCurrentTime] = useState(initialNowMs);
   const [isMounted, setIsMounted] = useState(false);
-  const timelineModel = useMemo(() => createTimelineModel(recordings), [recordings]);
+  const timelineModel = useMemo(() => createTimelineModel(recordings, currentTime), [currentTime, recordings]);
 
-  // Prevent hydration mismatch by only rendering time-dependent UI after mount
+  // The initial model uses the server snapshot. Live time takes over only
+  // after hydration, so render-time clock reads cannot change the HTML.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsMounted(true);

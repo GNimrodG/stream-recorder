@@ -8,8 +8,20 @@ import path from "node:path";
 import { ChildProcessWithoutNullStreams, spawn } from "node:child_process";
 import { getAllRecordings, saveRecordings } from "@/lib/recordings";
 
+type RecordingManagerGlobal = typeof globalThis & {
+  __streamRecorderRecordingManagers?: Map<string, RecordingManager>;
+};
+
+// Next.js can evaluate server component and route-handler bundles with separate
+// module caches. Keep the manager registry on the process global so every
+// server bundle observes and controls the same RecordingManager instances.
+const recordingManagerGlobal = globalThis as RecordingManagerGlobal;
+const recordingManagerInstances =
+  recordingManagerGlobal.__streamRecorderRecordingManagers ??
+  (recordingManagerGlobal.__streamRecorderRecordingManagers = new Map<string, RecordingManager>());
+
 export class RecordingManager {
-  private static instances: Map<string, RecordingManager> = new Map();
+  private static readonly instances = recordingManagerInstances;
 
   public static getInstance(id: string): RecordingManager | null {
     return RecordingManager.instances.get(id) || null;
@@ -27,7 +39,7 @@ export class RecordingManager {
     return this.lastAttemptPath;
   }
 
-  private abortController: AbortController = new AbortController();
+  private readonly abortController: AbortController = new AbortController();
   private status: RecordingStatus = "scheduled";
   public get currentStatus(): RecordingStatus {
     return this.status;
@@ -78,7 +90,7 @@ export class RecordingManager {
   }
 
   private initialStartTime?: string;
-  private attemptPaths: string[] = [];
+  private readonly attemptPaths: string[];
   private recordingEndedAt?: string; // Tracks when the actual recording ended (FFmpeg process closed)
 
   private scheduledStartTimeout: NodeJS.Timeout | null = null;
@@ -92,6 +104,7 @@ export class RecordingManager {
    * @param startTime - ISO string representing when to start recording
    * @param duration - Duration to record in seconds
    * @param ignoreDuration - Doesn't pass the -t argument to ffmpeg if true
+   * @param attemptPaths - Part files restored from persistent recording data
    */
   constructor(
     private readonly id: string,
@@ -100,6 +113,7 @@ export class RecordingManager {
     private startTime: string,
     private duration: number,
     private ignoreDuration: boolean = false,
+    attemptPaths: string[] = [],
   ) {
     if (!id || !name || !url || !startTime || !duration) {
       throw new Error("Missing required parameters for RecordingManager");
@@ -117,11 +131,17 @@ export class RecordingManager {
       throw new Error("Duration must be a positive number");
     }
 
-    if (isNaN(new Date(startTime).getTime())) {
-      throw new Error("Invalid start time. Must be a valid ISO date string.");
+    if (Number.isNaN(new Date(startTime).getTime())) {
+      throw new TypeError("Invalid start time. Must be a valid ISO date string.", {
+        cause: new Error(`Invalid date: ${startTime}`),
+      });
     }
 
     this.initialStartTime = startTime;
+    this.attemptPaths = Array.isArray(attemptPaths)
+      ? [...new Set(attemptPaths.filter((attemptPath) => typeof attemptPath === "string" && attemptPath.length > 0))]
+      : [];
+    this.lastAttemptPath = this.attemptPaths.at(-1) ?? null;
 
     const settings = loadSettings();
 
@@ -160,6 +180,17 @@ export class RecordingManager {
     if (startDate <= new Date()) {
       // check if time already elapsed
       if (this.getRemainingDuration() <= 0) {
+        // check if we already have recorded any attempts, if so, we can mark as completed, otherwise failed
+        if (this.attemptPaths.length > 0) {
+          this.log(
+            "Start time and duration have already elapsed, marking recording as completed with available parts.",
+          );
+
+          this.status = "completed";
+          this.finish();
+          return;
+        }
+
         this.log("Start time and duration have already elapsed, marking recording as failed.");
         this.status = "failed";
         this.finish(
@@ -173,10 +204,10 @@ export class RecordingManager {
       this.start();
     } else {
       this.log(
-        `Recording scheduled to start at ${this.startTime} (in ${Math.round((startDate.getTime() - new Date().getTime()) / 1000)} seconds)`,
+        `Recording scheduled to start at ${this.startTime} (in ${Math.round((startDate.getTime() - Date.now()) / 1000)} seconds)`,
       );
 
-      this.scheduledStartTimeout = setTimeout(() => this.start(), startDate.getTime() - new Date().getTime());
+      this.scheduledStartTimeout = setTimeout(() => this.start(), startDate.getTime() - Date.now());
     }
 
     RecordingManager.instances.set(this.id, this);
@@ -267,8 +298,10 @@ export class RecordingManager {
       this.url = data.url;
     }
     if (data.startTime) {
-      if (isNaN(new Date(data.startTime).getTime())) {
-        throw new Error("Invalid start time provided for update. Must be a valid ISO date string.");
+      if (Number.isNaN(new Date(data.startTime).getTime())) {
+        throw new TypeError("Invalid start time provided for update. Must be a valid ISO date string.", {
+          cause: new Error(`Invalid date: ${data.startTime}`),
+        });
       }
       this.startTime = data.startTime;
     }
@@ -292,13 +325,10 @@ export class RecordingManager {
         this.start();
       } else {
         this.log(
-          `Recording rescheduled to start at ${this.startTime} (in ${Math.round((new Date(this.startTime).getTime() - new Date().getTime()) / 1000)} seconds)`,
+          `Recording rescheduled to start at ${this.startTime} (in ${Math.round((new Date(this.startTime).getTime() - Date.now()) / 1000)} seconds)`,
         );
 
-        this.scheduledStartTimeout = setTimeout(
-          () => this.start(),
-          new Date(this.startTime).getTime() - new Date().getTime(),
-        );
+        this.scheduledStartTimeout = setTimeout(() => this.start(), new Date(this.startTime).getTime() - Date.now());
       }
     }
 
@@ -439,6 +469,10 @@ export class RecordingManager {
 
     this.log(`Recording to: ${outputPath} for duration: ${duration} seconds`);
 
+    // Persist the path before spawning FFmpeg. If the Node process exits while
+    // FFmpeg is writing this part, startup can still recover and merge it.
+    this.addAttemptPath(outputPath);
+
     // Spawn FFmpeg process
     this.process = spawn(this.FFMPEG_PATH, ffmpegArgs);
 
@@ -465,17 +499,22 @@ export class RecordingManager {
       }
 
       if (line.includes("frame=")) {
+        if (this.frameCount === 0) {
+          this.log("Recording has started, frames are being received.");
+          this.addAttemptPath(outputPath);
+        }
+
         const frameMatch = line.match(/frame=\s*(\d+)/);
         const fpsMatch = line.match(/fps=\s*([\d.]+)/);
         const timeMatch = line.match(/time=\s*([\d:.]+)/);
         const bitrateMatch = line.match(/bitrate=\s*([\d.]+kbits\/s)/);
         const speedMatch = line.match(/speed=\s*([\d.]+)x/);
 
-        if (frameMatch) this.frameCount = parseInt(frameMatch[1], 10);
-        if (fpsMatch) this.fps = parseFloat(fpsMatch[1]);
+        if (frameMatch) this.frameCount = Number.parseInt(frameMatch[1], 10);
+        if (fpsMatch) this.fps = Number.parseFloat(fpsMatch[1]);
         if (timeMatch) this.time = timeMatch[1];
         if (bitrateMatch) this.bitrate = bitrateMatch[1];
-        if (speedMatch) this.speed = parseFloat(speedMatch[1]);
+        if (speedMatch) this.speed = Number.parseFloat(speedMatch[1]);
       }
     });
 
@@ -510,9 +549,11 @@ export class RecordingManager {
         // Only add to attempt paths if file has meaningful content
         if (stats.size > 1024) {
           // More than 1KB
-          this.attemptPaths.push(outputPath);
+          this.addAttemptPath(outputPath);
         } else {
           this.log(`Output file is too small (${stats.size} bytes), not adding to attempt paths`);
+          // Remove from attemptPaths if it was added
+          this.removeAttemptPath(outputPath);
           // Delete the useless file
           try {
             fs.unlinkSync(outputPath);
@@ -522,6 +563,7 @@ export class RecordingManager {
         }
       } else {
         this.log(`Output file does not exist: ${outputPath}`);
+        this.removeAttemptPath(outputPath);
       }
 
       if (this.abortController.signal.aborted) {
@@ -546,6 +588,7 @@ export class RecordingManager {
 
     this.process!.on("error", (err) => {
       this.log(`FFmpeg process error: ${err.message || err}`);
+      this.removeAttemptPath(outputPath);
       this.status = "failed";
       this.finish(`Recording failed: ${err.message || err}`);
     });
@@ -560,6 +603,34 @@ export class RecordingManager {
       },
       { once: true },
     );
+  }
+
+  private addAttemptPath(path: string) {
+    if (!this.attemptPaths.includes(path)) {
+      this.attemptPaths.push(path);
+      this.persistAttemptPaths();
+    }
+  }
+
+  private removeAttemptPath(path: string) {
+    const index = this.attemptPaths.indexOf(path);
+    if (index > -1) {
+      this.attemptPaths.splice(index, 1);
+      this.persistAttemptPaths();
+    }
+  }
+
+  private persistAttemptPaths() {
+    const recordings = getAllRecordings();
+    const recording = recordings.find((candidate) => candidate.id === this.id);
+
+    if (!recording) {
+      this.log(`Could not persist attempt paths because recording ${this.id} was not found.`);
+      return;
+    }
+
+    recording.attemptPaths = [...this.attemptPaths];
+    saveRecordings(recordings);
   }
 
   private finish(errorMessage?: string, completedAt?: Date) {
@@ -577,6 +648,13 @@ export class RecordingManager {
 
     if (this.attemptPaths.length > 0) {
       try {
+        for (const attemptPath of this.attemptPaths) {
+          if (fs.existsSync(attemptPath)) {
+            this.log(`Merging file: ${attemptPath}`);
+          } else {
+            this.log(`Merging file not found: ${attemptPath}`);
+          }
+        }
         if (mergeRecordingParts(this.attemptPaths, this.FINAL_FILE_PATH)) {
           this.log(`Merged ${this.attemptPaths.length} recording attempts into final file: ${this.FINAL_FILE_PATH}`);
         } else {
@@ -603,6 +681,7 @@ export class RecordingManager {
     recording.success = this.status !== "failed" && this.attemptPaths.length > 0;
     recording.outputPath = fs.existsSync(this.FINAL_FILE_PATH) ? this.FINAL_FILE_PATH : undefined;
     recording.errorMessage = errorMessage;
+    recording.attemptPaths = [...this.attemptPaths];
     recording.updatedAt = new Date().toISOString();
     recording.completedAt = completedAt?.toISOString() || new Date().toISOString();
     recording.endedAt = this.recordingEndedAt;

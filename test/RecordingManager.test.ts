@@ -130,6 +130,28 @@ describe("RecordingManager - constructor validation", () => {
   });
 });
 
+describe("RecordingManager - server bundle registry", () => {
+  it("shares manager instances across separately evaluated module bundles", async () => {
+    const id = "shared-registry-test";
+    const future = new Date(Date.now() + 60_000).toISOString();
+    recordingsStore.push({
+      id,
+      name: "TestCam",
+      rtspUrl: "rtsp://testcam",
+      startTime: future,
+      duration: 60,
+    });
+
+    const manager = new RecordingManager(id, "TestCam", "rtsp://testcam", future, 60);
+
+    vi.resetModules();
+    const separatelyLoadedModule = await import("../src/lib/RecordingManager");
+
+    expect(separatelyLoadedModule.RecordingManager.getInstance(id)).toBe(manager);
+    clearTimeout((manager as { scheduledStartTimeout: NodeJS.Timeout }).scheduledStartTimeout);
+  });
+});
+
 describe("RecordingManager - ignoreDuration behavior", () => {
   it("passes -1 to buildFFmpegArgs when ignoreDuration is true", async () => {
     // arrange: create a pending recording entry so RecordingManager.start() finds it
@@ -165,5 +187,49 @@ describe("RecordingManager - ignoreDuration behavior", () => {
     expect(called).toBeTruthy();
     expect(called).toContain("-t -1");
     logSpy.mockRestore();
+  });
+});
+
+describe("RecordingManager - attempt recovery", () => {
+  it("persists an attempt path before FFmpeg begins writing", async () => {
+    const id = "persist-attempt-test";
+    const past = new Date(Date.now() - 2000).toISOString();
+    recordingsStore.push({
+      id,
+      name: "TestCam",
+      rtspUrl: "rtsp://testcam",
+      startTime: past,
+      duration: 60,
+    });
+    checkStreamStatusMock.mockResolvedValue("live");
+
+    new RecordingManager(id, "TestCam", "rtsp://testcam", past, 60);
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(recordingsStore[0].attemptPaths).toHaveLength(1);
+    expect(recordingsStore[0].attemptPaths[0]).toContain("_attempt1.mp4");
+  });
+
+  it("hydrates saved attempts and appends the next part after restart", async () => {
+    const id = "recover-attempt-test";
+    const past = new Date(Date.now() - 2000).toISOString();
+    const recoveredPath = "test_recordings/TestCam_previous_attempt1.mp4";
+    recordingsStore.push({
+      id,
+      name: "TestCam",
+      rtspUrl: "rtsp://testcam",
+      startTime: past,
+      duration: 60,
+      attemptPaths: [recoveredPath],
+    });
+    checkStreamStatusMock.mockResolvedValue("live");
+
+    const manager = new RecordingManager(id, "TestCam", "rtsp://testcam", past, 60, false, [recoveredPath]);
+    expect(manager.lastAttemptFilePath).toBe(recoveredPath);
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(recordingsStore[0].attemptPaths).toHaveLength(2);
+    expect(recordingsStore[0].attemptPaths).toContain(recoveredPath);
+    expect(recordingsStore[0].attemptPaths[1]).toContain("_attempt2.mp4");
   });
 });

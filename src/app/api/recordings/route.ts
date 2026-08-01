@@ -65,6 +65,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (body.rtspUrl.startsWith("rtspt://")) {
+      body.rtspUrl = body.rtspUrl.replace("rtspt://", "rtsp://");
+    }
+
     // Validate RTSP URL
     if (!body.rtspUrl.startsWith("rtsp://")) {
       return NextResponse.json({ error: "Invalid RTSP URL. Must start with rtsp://" }, { status: 400 });

@@ -4,6 +4,7 @@ import { parseCustomFFmpegArgs } from "@/lib/ffmpegArgs";
 import { generateSnapshotArgs, loadSettings } from "@/lib/settings";
 import { spawn, spawnSync } from "node:child_process";
 import { Settings } from "@/types/settings";
+import { isRunningInDocker } from "./runtime";
 
 /**
  * Merges multiple recording part files into a single final recording using FFmpeg's concat demuxer.
@@ -39,7 +40,7 @@ export function mergeRecordingParts(partPaths: string[], finalPath: string): boo
     })
     .map((p) => {
       const escapedName = path.basename(p).replaceAll("'", String.raw`'\''`);
-      return String.raw`file '${escapedName}'`;
+      return `file '${escapedName}'`;
     });
 
   if (!lines.length) {
@@ -162,7 +163,8 @@ export function buildFFmpegArgs(rtspUrl: string, outputPath: string, duration: n
 
   // RTSP-specific options for better stability
   args.push("-rtsp_flags", "prefer_tcp");
-  args.push("-stimeout", rtspIoTimeoutUs);
+  if (isRunningInDocker()) args.push("-stimeout", rtspIoTimeoutUs);
+  else args.push("-timeout", rtspIoTimeoutUs);
 
   // Buffer size settings for better handling of network jitter
   // Larger buffers help handle temporary network issues without dropping the connection and ignore DTS issues

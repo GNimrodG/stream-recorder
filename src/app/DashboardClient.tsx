@@ -46,9 +46,13 @@ type Props = {
   initialRecordings: RecordingWithStatus[];
   initialStats: RecordingStats;
   storageStats: Awaited<ReturnType<typeof import("@/lib/storage").getStorageStats>>;
+  initialNow: {
+    iso: string;
+    label: string;
+  };
 };
 
-export default function DashboardClient({ initialRecordings, initialStats, storageStats }: Readonly<Props>) {
+export default function DashboardClient({ initialRecordings, initialStats, storageStats, initialNow }: Readonly<Props>) {
   const timelineRef = useRef<RecordingTimelineHandle>(null);
   const [recordings, setRecordings] = useState<RecordingWithStatus[]>(initialRecordings);
   const [stats, setStats] = useState<RecordingStats>(initialStats);
@@ -56,7 +60,8 @@ export default function DashboardClient({ initialRecordings, initialStats, stora
   const [recordingsLoading, setRecordingsLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [logsRecording, setLogsRecording] = useState<RecordingWithStatus | null>(null);
-  const [currentTime, setCurrentTime] = useState(() => new Date().toISOString());
+  const [currentTime, setCurrentTime] = useState(initialNow.iso);
+  const [currentTimeLabel, setCurrentTimeLabel] = useState(initialNow.label);
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
     message: string;
@@ -70,7 +75,7 @@ export default function DashboardClient({ initialRecordings, initialStats, stora
   const [formData, setFormData] = useState<CreateRecordingDto>({
     name: "",
     rtspUrl: "",
-    startTime: new Date().toISOString(),
+    startTime: initialNow.iso,
     duration: 3600,
   });
 
@@ -128,7 +133,11 @@ export default function DashboardClient({ initialRecordings, initialStats, stora
   }, [fetchAll]);
 
   useEffect(() => {
-    const updateCurrentTime = () => setCurrentTime(new Date().toISOString());
+    const updateCurrentTime = () => {
+      const now = new Date().toISOString();
+      setCurrentTime(now);
+      setCurrentTimeLabel(formatDate(now));
+    };
 
     updateCurrentTime();
     const intervalId = globalThis.setInterval(updateCurrentTime, 1000);
@@ -251,11 +260,11 @@ export default function DashboardClient({ initialRecordings, initialStats, stora
   );
 
   const nextRecording = useMemo(() => {
-    const now = new Date();
+    const now = new Date(currentTime);
     return recordings
       .toSorted((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
       .find((rec) => new Date(rec.startTime) > now);
-  }, [recordings]);
+  }, [currentTime, recordings]);
 
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
@@ -359,7 +368,7 @@ export default function DashboardClient({ initialRecordings, initialStats, stora
                   variant="body2"
                   sx={{ fontWeight: 600, color: "text.primary", fontFamily: "var(--font-geist-mono)" }}
                   noWrap>
-                  {formatDate(currentTime)}
+                  {currentTimeLabel}
                 </Typography>
               </TimelineActionPair>
               {nextRecording && (
@@ -378,7 +387,11 @@ export default function DashboardClient({ initialRecordings, initialStats, stora
             </Stack>
           </Stack>
 
-          <RecordingTimeline ref={timelineRef} recordings={displayedRecordings} />
+          <RecordingTimeline
+            ref={timelineRef}
+            recordings={displayedRecordings}
+            initialNowMs={new Date(initialNow.iso).getTime()}
+          />
         </Paper>
 
         <Paper sx={{ p: 3 }}>

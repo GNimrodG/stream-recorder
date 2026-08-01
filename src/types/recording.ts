@@ -23,6 +23,7 @@ export interface Recording {
   endedAt?: string; // ISO date string - when the actual recording ended (stopped or completed)
   errorMessage?: string;
   ignoreDuration?: boolean;
+  attemptPaths?: string[]; // Part files retained for retry and process-restart recovery
 }
 
 export interface RecordingWithStatus extends Recording {
