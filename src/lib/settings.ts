@@ -3,6 +3,7 @@ import { parseCustomFFmpegArgs } from "@/lib/ffmpegArgs";
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { getStreamUrlKind } from "@/lib/streamUrl";
 
 const SETTINGS_FILE = process.env.SETTINGS_FILE_PATH || "./data/settings.json";
 
@@ -133,17 +134,24 @@ export function detectHardwareAcceleration(): HardwareAccelInfo {
   return info;
 }
 
-// Generate snapshot from RTSP stream
-export function generateSnapshotArgs(rtspUrl: string, outputPath: string, settings: Settings): string[] {
+// Generate a snapshot from a supported live stream.
+export function generateSnapshotArgs(streamUrl: string, outputPath: string, settings: Settings): string[] {
   const args: string[] = [];
   const rtspIoTimeoutUs = Math.max(0, Math.floor((settings.rtspSocketTimeoutMs ?? 10000) * 1000)).toString();
   const customArgs = parseCustomFFmpegArgs(settings.customFFmpegArgs);
 
-  args.push("-rtsp_transport", settings.rtspTransport);
-  args.push("-rtsp_flags", "prefer_tcp");
-  args.push("-stimeout", rtspIoTimeoutUs);
+  if (getStreamUrlKind(streamUrl) === "rtsp") {
+    args.push("-rtsp_transport", settings.rtspTransport);
+    args.push("-rtsp_flags", "prefer_tcp");
+    args.push("-stimeout", rtspIoTimeoutUs);
+  } else {
+    args.push("-rw_timeout", rtspIoTimeoutUs);
+    args.push("-reconnect", "1");
+    args.push("-reconnect_streamed", "1");
+    args.push("-reconnect_delay_max", Math.max(1, settings.reconnectDelay || 5).toString());
+  }
   args.push(...customArgs);
-  args.push("-i", rtspUrl);
+  args.push("-i", streamUrl);
   args.push("-vframes", "1");
 
   // Quality based on settings

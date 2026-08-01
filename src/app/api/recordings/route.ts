@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createRecording, getAllRecordingsWithStats, getPaginatedRecordingsWithStats } from "@/lib/recordings";
 import { CreateRecordingDto, RecordingFilterStatus } from "@/types/recording";
 import { ensureAppRuntimeInitialized } from "@/lib/runtime";
+import { isSupportedStreamUrl, normalizeStreamUrl, supportedStreamUrlError } from "@/lib/streamUrl";
 
 export function ensureInitialized() {
   ensureAppRuntimeInitialized();
@@ -65,13 +66,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (body.rtspUrl.startsWith("rtspt://")) {
-      body.rtspUrl = body.rtspUrl.replace("rtspt://", "rtsp://");
-    }
+    body.rtspUrl = normalizeStreamUrl(body.rtspUrl);
 
-    // Validate RTSP URL
-    if (!body.rtspUrl.startsWith("rtsp://")) {
-      return NextResponse.json({ error: "Invalid RTSP URL. Must start with rtsp://" }, { status: 400 });
+    if (!isSupportedStreamUrl(body.rtspUrl)) {
+      return NextResponse.json({ error: supportedStreamUrlError() }, { status: 400 });
     }
 
     // Validate duration

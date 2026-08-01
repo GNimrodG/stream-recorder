@@ -1,4 +1,5 @@
 import net from "node:net";
+import { getStreamUrlKind } from "@/lib/streamUrl";
 
 export type StreamStatus = "live" | "not_found" | "invalid" | "timeout" | "resp_timeout" | "error";
 
@@ -147,10 +148,20 @@ export async function checkMultipleStreamStatusWithCode(
   if (urls.length === 0) return results;
 
   const grouped = new Map<string, Array<{ url: string; hostname: string; port: number }>>();
+  const httpUrls: string[] = [];
 
   for (const url of urls) {
     try {
       const parsed = new URL(url);
+      const kind = getStreamUrlKind(url);
+      if (kind === "http") {
+        httpUrls.push(url);
+        continue;
+      }
+      if (kind !== "rtsp") {
+        results[url] = { status: "invalid" };
+        continue;
+      }
       const hostname = parsed.hostname;
       const port = +(parsed.port || "") || 554;
       const key = `${hostname}:${port}`;
@@ -295,10 +306,16 @@ export async function checkMultipleStreamStatusWithCode(
     }),
   );
 
+  await Promise.all(
+    httpUrls.map(async (url) => {
+      results[url] = await checkHttpStreamStatusWithCode(url, connectionTimeout, responseTimeout);
+    }),
+  );
+
   return results;
 }
 
-function checkSingleStreamStatusWithCode(
+function checkSingleRtspStreamStatusWithCode(
   url: string,
   connectionTimeout = 1000,
   responseTimeout = 4000,
@@ -428,6 +445,67 @@ function checkSingleStreamStatusWithCode(
       }
     }
   });
+}
+
+async function checkHttpStreamStatusWithCode(
+  url: string,
+  connectionTimeout = 1000,
+  responseTimeout = 4000,
+): Promise<StreamStatusWithCode> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), connectionTimeout + responseTimeout);
+
+  try {
+    const parsed = new URL(url);
+    const headers: HeadersInit = {
+      Accept: "application/vnd.apple.mpegurl, application/x-mpegURL, video/mp2t, */*",
+    };
+
+    // fetch does not accept credentials embedded in a URL, while FFmpeg does.
+    // Preserve equivalent Basic authentication for status probes.
+    if (parsed.username || parsed.password) {
+      const username = decodeURIComponent(parsed.username);
+      const password = decodeURIComponent(parsed.password);
+      headers.Authorization = `Basic ${Buffer.from(`${username}:${password}`).toString("base64")}`;
+      parsed.username = "";
+      parsed.password = "";
+    }
+
+    const response = await fetch(parsed, {
+      method: "GET",
+      headers,
+      redirect: "follow",
+      cache: "no-store",
+      signal: controller.signal,
+    });
+
+    await response.body?.cancel().catch(() => undefined);
+    return { status: mapStatusCode(response.status), httpStatus: response.status };
+  } catch (error) {
+    if (controller.signal.aborted || (error instanceof Error && error.name === "AbortError")) {
+      return { status: "timeout" };
+    }
+    return { status: "error" };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function checkSingleStreamStatusWithCode(
+  url: string,
+  connectionTimeout = 1000,
+  responseTimeout = 4000,
+): Promise<StreamStatusWithCode> {
+  const kind = getStreamUrlKind(url);
+
+  if (kind === "rtsp") {
+    return checkSingleRtspStreamStatusWithCode(url, connectionTimeout, responseTimeout);
+  }
+  if (kind === "http") {
+    return checkHttpStreamStatusWithCode(url, connectionTimeout, responseTimeout);
+  }
+
+  return Promise.resolve({ status: "invalid" });
 }
 
 export function checkStreamStatus(

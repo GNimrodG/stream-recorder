@@ -9,6 +9,7 @@ import StreamsPageClient from "@/app/streams/StreamsPageClient";
 describe("StreamsPageClient UI", () => {
   it("opens and submits the stream dialog", async () => {
     const user = userEvent.setup();
+    const eventSourceConstructor = vi.fn();
 
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
@@ -32,6 +33,10 @@ describe("StreamsPageClient UI", () => {
       onerror: ((event: Event) => void) | null = null;
       readyState = MockEventSource.CLOSED;
       close = vi.fn();
+
+      constructor() {
+        eventSourceConstructor();
+      }
     }
 
     vi.stubGlobal("fetch", fetchMock);
@@ -41,13 +46,19 @@ describe("StreamsPageClient UI", () => {
 
     await user.click(screen.getByRole("button", { name: "Add Stream" }));
     await user.type(screen.getByLabelText("Stream Name"), "My Stream");
-    await user.type(screen.getByLabelText("RTSP URL"), "rtsp://example/new");
+    await user.type(screen.getByLabelText("Stream URL"), "https://example.test/channel.live.ts?token=abc");
     await user.click(screen.getByRole("button", { name: /Save\s*Stream/i }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith("/api/streams", expect.objectContaining({ method: "POST" }));
     });
 
+    const postCall = fetchMock.mock.calls.find(([, init]) => init?.method === "POST");
+    expect(JSON.parse(postCall?.[1]?.body as string)).toMatchObject({
+      rtspUrl: "https://example.test/channel.live.ts?token=abc",
+    });
+
     expect(await screen.findByText("Stream saved successfully!")).toBeInTheDocument();
+    expect(eventSourceConstructor).not.toHaveBeenCalled();
   });
 });

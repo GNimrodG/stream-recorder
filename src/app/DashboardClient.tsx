@@ -31,6 +31,7 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import PlayCircleIcon from "@mui/icons-material/PlayCircle";
 import DownloadIcon from "@mui/icons-material/Download";
+import EditIcon from "@mui/icons-material/Edit";
 import { CreateRecordingDto, RecordingStats, RecordingWithStatus } from "@/types/recording";
 import RecordingDialog from "@/components/dialogs/RecordingDialog";
 import { formatDate } from "@/utils";
@@ -59,6 +60,7 @@ export default function DashboardClient({ initialRecordings, initialStats, stora
   const [loading, setLoading] = useState(false);
   const [recordingsLoading, setRecordingsLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingRecording, setEditingRecording] = useState<RecordingWithStatus | null>(null);
   const [logsRecording, setLogsRecording] = useState<RecordingWithStatus | null>(null);
   const [currentTime, setCurrentTime] = useState(initialNow.iso);
   const [currentTimeLabel, setCurrentTimeLabel] = useState(initialNow.label);
@@ -78,6 +80,35 @@ export default function DashboardClient({ initialRecordings, initialStats, stora
     startTime: initialNow.iso,
     duration: 3600,
   });
+
+  const closeRecordingDialog = () => {
+    setDialogOpen(false);
+    setEditingRecording(null);
+  };
+
+  const openCreateRecordingDialog = () => {
+    setEditingRecording(null);
+    setFormData({
+      name: "",
+      rtspUrl: "",
+      startTime: new Date().toISOString(),
+      duration: 3600,
+      ignoreDuration: false,
+    });
+    setDialogOpen(true);
+  };
+
+  const openEditRecordingDialog = (recording: RecordingWithStatus) => {
+    setEditingRecording(recording);
+    setFormData({
+      name: recording.name,
+      rtspUrl: recording.rtspUrl,
+      startTime: recording.startTime,
+      duration: recording.duration,
+      ignoreDuration: recording.ignoreDuration ?? false,
+    });
+    setDialogOpen(true);
+  };
 
   const fetchRecordings = useCallback(async (showLoading = false) => {
     if (showLoading) {
@@ -158,7 +189,7 @@ export default function DashboardClient({ initialRecordings, initialStats, stora
         throw new Error(error.error || "Failed to create recording");
       }
 
-      setDialogOpen(false);
+      closeRecordingDialog();
       setFormData({
         name: "",
         rtspUrl: "",
@@ -168,6 +199,37 @@ export default function DashboardClient({ initialRecordings, initialStats, stora
       setSnackbar({
         open: true,
         message: "Recording scheduled successfully!",
+        severity: "success",
+      });
+      await fetchAll(false);
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: (error as Error).message,
+        severity: "error",
+      });
+    }
+  };
+
+  const handleUpdateRecording = async () => {
+    if (!editingRecording) return;
+
+    try {
+      const response = await fetch(`/api/recordings/${editingRecording.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to update recording");
+      }
+
+      closeRecordingDialog();
+      setSnackbar({
+        open: true,
+        message: "Recording updated successfully!",
         severity: "success",
       });
       await fetchAll(false);
@@ -405,7 +467,7 @@ export default function DashboardClient({ initialRecordings, initialStats, stora
             <Typography variant="h6" sx={{ fontWeight: "bold" }}>
               Recent Recordings
             </Typography>
-            <Button variant="contained" startIcon={<AddIcon />} onClick={() => setDialogOpen(true)}>
+            <Button variant="contained" startIcon={<AddIcon />} onClick={openCreateRecordingDialog}>
               New Recording
             </Button>
           </Box>
@@ -415,7 +477,7 @@ export default function DashboardClient({ initialRecordings, initialStats, stora
               <TableHead>
                 <TableRow>
                   <TableCell sx={{ width: { xs: "auto", md: "20%" } }}>Name</TableCell>
-                  <TableCell sx={{ width: { xs: "auto", md: "5%" } }}>RTSP URL</TableCell>
+                  <TableCell sx={{ width: { xs: "auto", md: "5%" } }}>Stream URL</TableCell>
                   <TableCell sx={{ width: { xs: "auto", md: "10%" } }}>Start Time</TableCell>
                   <TableCell sx={{ width: { xs: "auto", md: "10%" } }}>Duration</TableCell>
                   <TableCell sx={{ width: { xs: "auto", md: "20%" } }}>Status</TableCell>
@@ -498,11 +560,24 @@ export default function DashboardClient({ initialRecordings, initialStats, stora
                             </IconButton>
                           </Tooltip>
                           {recording.status === "scheduled" && (
-                            <Tooltip title="Start Now">
-                              <IconButton color="success" onClick={() => handleStartRecording(recording.id)}>
-                                <PlayArrowIcon />
-                              </IconButton>
-                            </Tooltip>
+                            <>
+                              <Tooltip title="Edit">
+                                <IconButton
+                                  color="primary"
+                                  size="small"
+                                  onClick={() => openEditRecordingDialog(recording)}>
+                                  <EditIcon />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Start Now">
+                                <IconButton
+                                  color="success"
+                                  size="small"
+                                  onClick={() => handleStartRecording(recording.id)}>
+                                  <PlayArrowIcon />
+                                </IconButton>
+                              </Tooltip>
+                            </>
                           )}
                           {(recording.status === "recording" || recording.status === "retrying") && (
                             <Tooltip title="Stop">
@@ -528,12 +603,12 @@ export default function DashboardClient({ initialRecordings, initialStats, stora
 
       <RecordingDialog
         open={dialogOpen}
-        onClose={() => setDialogOpen(false)}
-        onSubmit={handleCreateRecording}
+        onClose={closeRecordingDialog}
+        onSubmit={editingRecording ? handleUpdateRecording : handleCreateRecording}
         formData={formData}
         onFormChange={setFormData}
-        title="Schedule New Recording"
-        submitLabel="Schedule Recording"
+        title={editingRecording ? "Edit Recording" : "Schedule New Recording"}
+        submitLabel={editingRecording ? "Update Recording" : "Schedule Recording"}
       />
 
       <RecordingLogsDialog

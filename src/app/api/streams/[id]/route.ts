@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { deleteStream, getStreamById, updateStream } from "@/lib/streams";
+import { isSupportedStreamUrl, normalizeStreamUrl, supportedStreamUrlError } from "@/lib/streamUrl";
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -17,6 +18,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   try {
     const body = await request.json();
+    if (body.rtspUrl !== undefined) {
+      body.rtspUrl = normalizeStreamUrl(body.rtspUrl);
+      if (!isSupportedStreamUrl(body.rtspUrl)) {
+        return NextResponse.json({ error: supportedStreamUrlError() }, { status: 400 });
+      }
+    }
     const stream = updateStream(id, body);
 
     if (!stream) {

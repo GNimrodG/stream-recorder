@@ -7,6 +7,7 @@ import { buildFFmpegArgs, mergeRecordingParts } from "@/lib/ffmpeg";
 import path from "node:path";
 import { ChildProcessWithoutNullStreams, spawn } from "node:child_process";
 import { getAllRecordings, saveRecordings } from "@/lib/recordings";
+import { isSupportedStreamUrl, normalizeStreamUrl, supportedStreamUrlError } from "@/lib/streamUrl";
 
 type RecordingManagerGlobal = typeof globalThis & {
   __streamRecorderRecordingManagers?: Map<string, RecordingManager>;
@@ -100,7 +101,7 @@ export class RecordingManager {
    * Creates a new RecordingManager instance for a specific stream.
    * @param id - Unique identifier for the recording
    * @param name - Name of the recording (usually derived from stream name)
-   * @param url - RTSP URL of the stream to record
+   * @param url - RTSP or HTTP(S) live stream URL to record
    * @param startTime - ISO string representing when to start recording
    * @param duration - Duration to record in seconds
    * @param ignoreDuration - Doesn't pass the -t argument to ffmpeg if true
@@ -123,8 +124,9 @@ export class RecordingManager {
       throw new Error(`RecordingManager with ID ${id} already exists`);
     }
 
-    if (!url.startsWith("rtsp://")) {
-      throw new Error("Invalid RTSP URL. Must start with rtsp://");
+    this.url = normalizeStreamUrl(url);
+    if (!isSupportedStreamUrl(this.url)) {
+      throw new Error(supportedStreamUrlError());
     }
 
     if (duration <= 0) {
@@ -292,10 +294,11 @@ export class RecordingManager {
       this.name = data.name;
     }
     if (data.url) {
-      if (!data.url.startsWith("rtsp://")) {
-        throw new Error("Invalid RTSP URL provided for update. Must start with rtsp://");
+      const normalizedUrl = normalizeStreamUrl(data.url);
+      if (!isSupportedStreamUrl(normalizedUrl)) {
+        throw new Error(supportedStreamUrlError());
       }
-      this.url = data.url;
+      this.url = normalizedUrl;
     }
     if (data.startTime) {
       if (Number.isNaN(new Date(data.startTime).getTime())) {
@@ -304,6 +307,7 @@ export class RecordingManager {
         });
       }
       this.startTime = data.startTime;
+      this.initialStartTime = data.startTime;
     }
     if (data.duration) {
       if (data.duration <= 0) {

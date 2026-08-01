@@ -1,7 +1,8 @@
 import { SavedStream } from "@/types/stream";
-import { randomUUID } from "crypto";
-import fs from "fs";
-import path from "path";
+import { randomUUID } from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+import { isSupportedStreamUrl, normalizeStreamUrl, supportedStreamUrlError } from "@/lib/streamUrl";
 
 const STREAMS_FILE = process.env.STREAMS_FILE_PATH || "./data/streams.json";
 
@@ -51,11 +52,15 @@ export function createStream(data: {
 }): SavedStream {
   const streams = loadStreams();
   const now = new Date().toISOString();
+  const streamUrl = normalizeStreamUrl(data.rtspUrl);
+  if (!isSupportedStreamUrl(streamUrl)) {
+    throw new Error(supportedStreamUrlError());
+  }
 
   const stream: SavedStream = {
     id: randomUUID(),
     name: data.name,
-    rtspUrl: data.rtspUrl,
+    rtspUrl: streamUrl,
     description: data.description,
     favorite: data.favorite ?? false,
     autoRecordWhenLive: data.autoRecordWhenLive ?? false,
@@ -78,9 +83,16 @@ export function updateStream(id: string, data: Partial<SavedStream>): SavedStrea
   }
 
   const stream = streams[index];
+  const normalizedData = { ...data };
+  if (normalizedData.rtspUrl !== undefined) {
+    normalizedData.rtspUrl = normalizeStreamUrl(normalizedData.rtspUrl);
+    if (!isSupportedStreamUrl(normalizedData.rtspUrl)) {
+      throw new Error(supportedStreamUrlError());
+    }
+  }
   const updatedStream: SavedStream = {
     ...stream,
-    ...data,
+    ...normalizedData,
     id: stream.id, // Prevent id change
     createdAt: stream.createdAt, // Prevent createdAt change
     updatedAt: new Date().toISOString(),

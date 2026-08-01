@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { parseCustomFFmpegArgs } from "@/lib/ffmpegArgs";
+import { getStreamUrlKind } from "@/lib/streamUrl";
 import { generateSnapshotArgs, loadSettings } from "@/lib/settings";
 import { spawn, spawnSync } from "node:child_process";
 import { Settings } from "@/types/settings";
@@ -140,7 +141,31 @@ function remuxToFastStart(filePath: string): void {
 }
 
 // Build FFmpeg arguments based on settings
-export function buildFFmpegArgs(rtspUrl: string, outputPath: string, duration: number): string[] {
+function getNetworkInputArgs(streamUrl: string, timeoutUs: string, settings: Settings): string[] {
+  if (getStreamUrlKind(streamUrl) === "rtsp") {
+    return [
+      "-rtsp_transport",
+      settings.rtspTransport,
+      "-rtsp_flags",
+      "prefer_tcp",
+      isRunningInDocker() ? "-stimeout" : "-timeout",
+      timeoutUs,
+    ];
+  }
+
+  return [
+    "-rw_timeout",
+    timeoutUs,
+    "-reconnect",
+    "1",
+    "-reconnect_streamed",
+    "1",
+    "-reconnect_delay_max",
+    Math.max(1, settings.reconnectDelay || 5).toString(),
+  ];
+}
+
+export function buildFFmpegArgs(streamUrl: string, outputPath: string, duration: number): string[] {
   const settings = loadSettings();
   const args: string[] = [];
   const rtspIoTimeoutUs = Math.max(0, Math.floor((settings.rtspSocketTimeoutMs ?? 10000) * 1000)).toString();
@@ -158,13 +183,7 @@ export function buildFFmpegArgs(rtspUrl: string, outputPath: string, duration: n
 
   args.push("-loglevel", settings.logLevel || "info");
 
-  // RTSP transport
-  args.push("-rtsp_transport", settings.rtspTransport);
-
-  // RTSP-specific options for better stability
-  args.push("-rtsp_flags", "prefer_tcp");
-  if (isRunningInDocker()) args.push("-stimeout", rtspIoTimeoutUs);
-  else args.push("-timeout", rtspIoTimeoutUs);
+  args.push(...getNetworkInputArgs(streamUrl, rtspIoTimeoutUs, settings));
 
   // Buffer size settings for better handling of network jitter
   // Larger buffers help handle temporary network issues without dropping the connection and ignore DTS issues
@@ -182,7 +201,7 @@ export function buildFFmpegArgs(rtspUrl: string, outputPath: string, duration: n
     args.push(...customArgs);
   }
 
-  args.push("-i", rtspUrl);
+  args.push("-i", streamUrl);
 
   // Video codec
   if (settings.videoCodec === "copy") {
@@ -195,6 +214,12 @@ export function buildFFmpegArgs(rtspUrl: string, outputPath: string, duration: n
   // Audio codec
   if (settings.audioCodec === "copy") {
     args.push("-c:a", "copy");
+    // FFmpeg 4.4 (used by the production Ubuntu image) does not always
+    // auto-insert this conversion when AAC arrives in ADTS/MPEG-TS from HLS.
+    // Without it, copying HLS audio into MP4 fails while newer local builds work.
+    if (settings.outputFormat === "mp4" && getStreamUrlKind(streamUrl) === "http") {
+      args.push("-bsf:a", "aac_adtstoasc");
+    }
   } else {
     args.push("-c:a", settings.audioCodec);
   }
@@ -226,7 +251,7 @@ export function buildFFmpegArgs(rtspUrl: string, outputPath: string, duration: n
 const browserCompatibleVideoEncoder = "libx264";
 const browserCompatibleAudioEncoder = "aac";
 
-export function buildFFmpegArgsForPreview(rtspUrl: string): string[] {
+export function buildFFmpegArgsForPreview(streamUrl: string): string[] {
   const settings = loadSettings();
   const rtspIoTimeoutUs = Math.max(0, Math.floor((settings.rtspSocketTimeoutMs ?? 10000) * 1000)).toString();
   const customArgs = parseCustomFFmpegArgs(settings.customFFmpegArgs);
@@ -236,12 +261,7 @@ export function buildFFmpegArgsForPreview(rtspUrl: string): string[] {
     "-hide_banner",
     "-loglevel",
     "error",
-    "-rtsp_transport",
-    settings.rtspTransport,
-    "-rtsp_flags",
-    "prefer_tcp",
-    "-stimeout",
-    rtspIoTimeoutUs,
+    ...getNetworkInputArgs(streamUrl, rtspIoTimeoutUs, settings),
     "-fflags",
     "+genpts+igndts+discardcorrupt",
     "-flags",
@@ -252,7 +272,7 @@ export function buildFFmpegArgsForPreview(rtspUrl: string): string[] {
     "10M",
     ...customArgs,
     "-i",
-    rtspUrl,
+    streamUrl,
     "-map",
     "0:v:0",
     "-map",

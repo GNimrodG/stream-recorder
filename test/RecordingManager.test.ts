@@ -112,10 +112,23 @@ afterEach(() => {
 });
 
 describe("RecordingManager - constructor validation", () => {
-  it("throws when RTSP URL is invalid", () => {
-    expect(() => new RecordingManager("1", "Name", "http://not-rtsp", new Date().toISOString(), 10)).toThrow(
-      /Invalid RTSP URL/,
+  it("throws when the stream URL protocol is unsupported", () => {
+    expect(() => new RecordingManager("1", "Name", "ftp://not-supported", new Date().toISOString(), 10)).toThrow(
+      /Invalid stream URL/,
     );
+  });
+
+  it("accepts an HTTPS live transport stream URL", () => {
+    const manager = new RecordingManager(
+      "https-stream",
+      "HTTPS Stream",
+      "https://example.test/channel.live.ts?token=secret",
+      new Date(Date.now() + 60_000).toISOString(),
+      10,
+    );
+
+    expect(manager.currentStatus).toBe("scheduled");
+    clearTimeout((manager as { scheduledStartTimeout: NodeJS.Timeout }).scheduledStartTimeout);
   });
 
   it("throws when duration is non-positive", () => {

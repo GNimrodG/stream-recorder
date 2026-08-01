@@ -10,6 +10,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { RecordingManager } from "@/lib/RecordingManager";
 import { runStorageCleanup } from "@/lib/storage";
+import { isSupportedStreamUrl, normalizeStreamUrl, supportedStreamUrlError } from "@/lib/streamUrl";
 
 const RECORDINGS_FILE = process.env.RECORDINGS_DB_PATH || "./data/recordings.json";
 const RECORDINGS_OUTPUT_DIR = process.env.RECORDINGS_OUTPUT_DIR || "./recordings";
@@ -222,11 +223,15 @@ export function createRecording(data: {
 }): Recording {
   const recordings = loadRecordings();
   const now = new Date().toISOString();
+  const streamUrl = normalizeStreamUrl(data.rtspUrl);
+  if (!isSupportedStreamUrl(streamUrl)) {
+    throw new Error(supportedStreamUrlError());
+  }
 
   const recording: Recording = {
     id: randomUUID(),
     name: data.name,
-    rtspUrl: data.rtspUrl,
+    rtspUrl: streamUrl,
     startTime: data.startTime,
     duration: data.duration,
     sourceStreamId: data.sourceStreamId,
@@ -275,11 +280,25 @@ export function updateRecording(id: string, data: Partial<Recording>): Recording
     throw new Error("Cannot update a recording that has already completed");
   }
 
-  recordingManager.update(data);
+  const normalizedData = { ...data };
+  if (normalizedData.rtspUrl !== undefined) {
+    normalizedData.rtspUrl = normalizeStreamUrl(normalizedData.rtspUrl);
+    if (!isSupportedStreamUrl(normalizedData.rtspUrl)) {
+      throw new Error(supportedStreamUrlError());
+    }
+  }
+
+  recordingManager.update({
+    name: normalizedData.name,
+    url: normalizedData.rtspUrl,
+    startTime: normalizedData.startTime,
+    duration: normalizedData.duration,
+    ignoreDuration: normalizedData.ignoreDuration,
+  });
 
   const updatedRecording: Recording = {
     ...recording,
-    ...data,
+    ...normalizedData,
     id: recording.id, // Prevent id change
     updatedAt: new Date().toISOString(),
   };

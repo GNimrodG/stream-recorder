@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest"
+    "test": "vitest",
+    "test:docker:ffmpeg": "docker compose -f docker-compose.test.yml run --build --rm ffmpeg-test",
+    "test:docker:inside": "vitest run --config vitest.docker.config.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.2.0",

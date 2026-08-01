@@ -15,8 +15,9 @@ COPY . .
 # Build the application
 RUN yarn build
 
-# Production stage - Use Ubuntu base for NVIDIA GPU support
-FROM nvidia/cuda:12.3.1-runtime-ubuntu22.04 AS runner
+# Shared runtime base. The FFmpeg integration-test image derives from this
+# exact stage so it exercises the same Ubuntu FFmpeg build as production.
+FROM nvidia/cuda:12.3.1-runtime-ubuntu22.04 AS runtime-base
 
 WORKDIR /app
 
@@ -33,6 +34,24 @@ RUN apt-get update && apt-get install -y \
     && apt-get install -y nodejs ffmpeg \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+# Opt-in FFmpeg integration test stage. This intentionally installs development
+# dependencies in a separate image; none of them are copied into production.
+FROM runtime-base AS ffmpeg-test
+
+ENV NODE_ENV=test
+
+RUN npm install --global yarn@1.22.22
+
+COPY package.json yarn.lock ./
+RUN yarn install --frozen-lockfile
+
+COPY . .
+
+CMD ["yarn", "test:docker:inside"]
+
+# Production stage
+FROM runtime-base AS runner
 
 # Create non-root user
 RUN groupadd --system --gid 1001 nodejs && \

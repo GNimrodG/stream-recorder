@@ -12,6 +12,7 @@ beforeEach(() => {
 afterEach(() => {
   (net.createConnection as unknown) = originalCreateConnection;
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 async function createFakeSocket(): Promise<net.Socket & { emitData?: (s: string) => void }> {
@@ -192,5 +193,38 @@ describe("stream checkStreamStatus", () => {
       "rtsp://localhost/one": "live",
       "rtsp://localhost/two": "not_found",
     });
+  });
+
+  it("checks HTTPS live transport streams without opening an RTSP socket", async () => {
+    const cancel = vi.fn().mockResolvedValue(undefined);
+    const fetchMock = vi.fn().mockResolvedValue({
+      status: 200,
+      body: { cancel },
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    (net.createConnection as unknown) = vi.fn();
+
+    const mod = await import("../src/lib/rtsp");
+    const result = await mod.checkStreamStatusWithCode("https://example.test/channel.live.ts?token=abc", 500, 4000);
+
+    expect(result).toEqual({ status: "live", httpStatus: 200 });
+    expect(net.createConnection as unknown as any).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.objectContaining({ href: "https://example.test/channel.live.ts?token=abc" }),
+      expect.objectContaining({ method: "GET", cache: "no-store" }),
+    );
+    expect(cancel).toHaveBeenCalledOnce();
+  });
+
+  it("maps HTTP 404 responses to not_found", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ status: 404, body: { cancel: vi.fn().mockResolvedValue(undefined) } }),
+    );
+
+    const mod = await import("../src/lib/rtsp");
+    await expect(mod.checkStreamStatus("https://example.test/missing.live.ts", 500, 4000)).resolves.toBe(
+      "not_found",
+    );
   });
 });

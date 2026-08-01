@@ -1,0 +1,9 @@
+services:
+  ffmpeg-test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: ffmpeg-test
+    environment:
+      FFMPEG_PATH: ffmpeg
+      SETTINGS_FILE_PATH: /tmp/stream-recorder-ffmpeg-test/settings.json

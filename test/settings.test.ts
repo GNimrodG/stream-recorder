@@ -36,4 +36,37 @@ describe("generateSnapshotArgs", () => {
     expect(args).toContain("-stimeout");
     expect(args[args.indexOf("-stimeout") + 1]).toBe("4321000");
   });
+
+  it("uses HTTP reconnect options for HTTPS transport streams", async () => {
+    const settings: Settings = {
+      ffmpegPath: "ffmpeg",
+      hardwareAcceleration: "none",
+      outputFormat: "mp4",
+      videoCodec: "copy",
+      audioCodec: "copy",
+      customFFmpegArgs: "",
+      logLevel: "info",
+      defaultDuration: 3600,
+      rtspTransport: "tcp",
+      rtspSocketTimeoutMs: 4321,
+      streamStatusResponseTimeoutMs: 4000,
+      streamStatusConnectionTimeoutMs: 500,
+      reconnectAttempts: 3,
+      reconnectDelay: 7,
+      outputDirectory: "./recordings",
+      maxStorageGB: 0,
+      autoDeleteAfterDays: 0,
+      previewEnabled: true,
+      previewQuality: "medium",
+      snapshotInterval: 5,
+    };
+
+    const { generateSnapshotArgs } = await import("../src/lib/settings");
+    const args = generateSnapshotArgs("https://example.test/channel.live.ts", "snapshot.jpg", settings);
+
+    expect(args).not.toContain("-rtsp_transport");
+    expect(args).toContain("-rw_timeout");
+    expect(args).toContain("-reconnect_streamed");
+    expect(args[args.indexOf("-reconnect_delay_max") + 1]).toBe("7");
+  });
 });

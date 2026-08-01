@@ -1,18 +1,29 @@
-# RTSP Stream Recorder
+# Live Stream Recorder
 
-A web-based application for scheduling and recording timed RTSP streams using FFmpeg with hardware acceleration support.
+A web-based application for scheduling and recording timed RTSP and HTTP(S) HLS/MPEG-TS streams using FFmpeg with hardware acceleration support.
 Built with Next.js and Material-UI.
 
 ## Features
 
-- 📅 **Schedule Recordings** - Set a start time and duration for RTSP stream recordings
+- 📅 **Schedule Recordings** - Set a start time and duration for live stream recordings
 - ▶️ **Manual Control** - Start or stop recordings manually
 - 📊 **Dashboard** - View recording statistics and status at a glance
 - 👁️ **Live Preview & Viewer** - Preview active streams with auto-refreshing snapshots and watch recordings
-- 📺 **Stream Management** - Save and manage your RTSP streams for quick access
+- 📺 **Stream Management** - Save and manage RTSP and HTTP(S) live streams for quick access
 - 🎬 **Hardware Acceleration** - NVIDIA (NVENC), Intel (QSV), and AMD (AMF) support
 - ⚙️ **Configurable Settings** - Customize codecs, formats, and output options
 - 🔒 **Authentication** - Optional Authentik OAuth2/OpenID Connect integration
+
+## Docker FFmpeg integration test
+
+The normal Vitest suite mocks FFmpeg. To validate the generated recording, preview, and snapshot arguments against the actual FFmpeg package used by the production Docker image, run:
+
+```bash
+yarn test:docker:ffmpeg
+```
+
+The test builds the dedicated `ffmpeg-test` stage from the same CUDA/Ubuntu runtime base as production, generates a short media fixture, serves it as an HTTP `.live.ts` stream, and verifies the resulting media outputs. It does not require an NVIDIA GPU because the test explicitly uses software/copy codecs.
+
 - 🐳 **Docker Ready** - Easy deployment with Docker and Docker Compose
 - 📥 **Download Recordings** - Download completed recordings directly from the UI
 
@@ -54,11 +65,13 @@ Configure hardware acceleration, codecs, storage, and preview options
 ### Local Development
 
 1. **Install dependencies:**
+
    ```bash
    yarn install
    ```
 
 2. **Ensure FFmpeg is installed:**
+
    ```bash
    # Windows (with Chocolatey)
    choco install ffmpeg
@@ -71,6 +84,7 @@ Configure hardware acceleration, codecs, storage, and preview options
    ```
 
 3. **Run the development server:**
+
    ```bash
    yarn dev
    ```
@@ -81,6 +95,7 @@ Configure hardware acceleration, codecs, storage, and preview options
 ### Docker Deployment
 
 1. **Build and run with Docker Compose:**
+
    ```bash
    docker-compose up -d --build
    ```
@@ -89,6 +104,7 @@ Configure hardware acceleration, codecs, storage, and preview options
    Navigate to [http://localhost:3000](http://localhost:3000)
 
 3. **View logs:**
+
    ```bash
    docker-compose logs -f stream-recorder
    ```
@@ -103,7 +119,7 @@ Configure hardware acceleration, codecs, storage, and preview options
 ### Environment Variables
 
 |        Variable         | Description                        | Default                                      |
-|:-----------------------:|------------------------------------|----------------------------------------------|
+| :---------------------: | ---------------------------------- | -------------------------------------------- |
 |  `RECORDINGS_DB_PATH`   | Path to the JSON database file     | `./data/recordings.json`                     |
 |  `SETTINGS_FILE_PATH`   | Path to the settings JSON file     | `./data/settings.json`                       |
 |   `STREAMS_FILE_PATH`   | Path to the streams JSON file      | `./data/streams.json`                        |
@@ -163,7 +179,7 @@ The Docker setup uses two persistent volumes:
 ### Recordings
 
 |  Method  | Endpoint                            | Description                 |
-|:--------:|-------------------------------------|-----------------------------|
+| :------: | ----------------------------------- | --------------------------- |
 |  `GET`   | `/api/recordings`                   | Get all recordings          |
 |  `GET`   | `/api/recordings?stats=true`        | Get recording statistics    |
 |  `POST`  | `/api/recordings`                   | Create a new recording      |
@@ -179,7 +195,7 @@ The Docker setup uses two persistent volumes:
 ### Streams
 
 |  Method  | Endpoint            | Description           |
-|:--------:|---------------------|-----------------------|
+| :------: | ------------------- | --------------------- |
 |  `GET`   | `/api/streams`      | Get all saved streams |
 |  `POST`  | `/api/streams`      | Create a new stream   |
 |  `GET`   | `/api/streams/[id]` | Get a specific stream |
@@ -189,7 +205,7 @@ The Docker setup uses two persistent volumes:
 ### Settings
 
 | Method  | Endpoint                    | Description                    |
-|:-------:|:----------------------------|--------------------------------|
+| :-----: | :-------------------------- | ------------------------------ |
 |  `GET`  | `/api/settings`             | Get current settings           |
 |  `GET`  | `/api/settings?hwinfo=true` | Get hardware acceleration info |
 |  `PUT`  | `/api/settings`             | Save all settings              |
@@ -198,39 +214,39 @@ The Docker setup uses two persistent volumes:
 ### Storage
 
 | Method | Endpoint       | Description                 |
-|:------:|:---------------|:----------------------------|
+| :----: | :------------- | :-------------------------- |
 | `GET`  | `/api/storage` | Get storage statistics      |
 | `POST` | `/api/storage` | Run storage cleanup process |
 
 ## Usage
 
 1. **Configure Settings (Optional):**
-    - Go to Settings page
-    - Configure hardware acceleration if you have a compatible GPU
-    - Set your preferred output format and codecs
-    - Configure storage location and limits
+   - Go to Settings page
+   - Configure hardware acceleration if you have a compatible GPU
+   - Set your preferred output format and codecs
+   - Configure storage location and limits
 
 2. **Create a Recording:**
-    - Click "New Recording" button
-    - Enter a name for the recording
-    - Set the RTSP URL (e.g., `rtsp://admin:password@192.168.1.100:554/stream`)
-    - Set the start time
-    - Set the duration in seconds
-    - Click "Schedule Recording"
+   - Click "New Recording" button
+   - Enter a name for the recording
+   - Set the RTSP URL (e.g., `rtsp://admin:password@192.168.1.100:554/stream`)
+   - Set the start time
+   - Set the duration in seconds
+   - Click "Schedule Recording"
 
 3. **Monitor Recordings:**
-    - View the status of all recordings in the Dashboard or Recordings page
-    - Scheduled recordings show an "info" status
-    - Active recordings show a "recording" status with preview and stop buttons
-    - Completed recordings show a "success" status with download button
+   - View the status of all recordings in the Dashboard or Recordings page
+   - Scheduled recordings show an "info" status
+   - Active recordings show a "recording" status with preview and stop buttons
+   - Completed recordings show a "success" status with download button
 
 4. **Preview Active Streams:**
-    - Click the eye icon on any active recording
-    - View the live stream with auto-refreshing snapshots
+   - Click the eye icon on any active recording
+   - View the live stream with auto-refreshing snapshots
 
 5. **Download Completed Recordings:**
-    - Click the download icon on completed recordings
-    - The video file will be downloaded to your device
+   - Click the download icon on completed recordings
+   - The video file will be downloaded to your device
 
 ## Tech Stack
 

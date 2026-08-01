@@ -17,6 +17,13 @@ import {
 import DownloadIcon from "@mui/icons-material/Download";
 import { RecordingWithStatus } from "@/types/recording";
 import { useLocalStorage } from "@mantine/hooks";
+import {
+  buildRecordingLogDisplayItems,
+  LogDisplayItem,
+  LogLineItem,
+  LogPlaceholderItem,
+  parseRecordingLogLine,
+} from "@/lib/recordingLogDisplay";
 
 type Props = {
   open: boolean;
@@ -24,24 +31,7 @@ type Props = {
   recording: RecordingWithStatus | null;
 };
 
-type LineItem = {
-  type: "line";
-  raw: string;
-  timestamp?: string | null;
-  text: string;
-};
-
-type PlaceholderItem = {
-  type: "placeholder";
-  count: number;
-  lines: string[]; // raw lines hidden
-  startTimestamp?: string | null;
-  endTimestamp?: string | null;
-};
-
-type DisplayItem = LineItem | PlaceholderItem;
-
-export default function RecordingLogsDialog({ open, onCloseAction, recording }: Props) {
+export default function RecordingLogsDialog({ open, onCloseAction, recording }: Readonly<Props>) {
   const [logsContent, setLogsContent] = useState<string | null>(null);
   const [logsLoading, setLogsLoading] = useState(false);
   // Persisted UI preferences (stored in localStorage)
@@ -53,6 +43,11 @@ export default function RecordingLogsDialog({ open, onCloseAction, recording }: 
   const [hideFrameLines, setHideFrameLines] = useLocalStorage<boolean>({
     key: "recordingLogs.hideFrameLines",
     defaultValue: false,
+  });
+
+  const [hideHlsNoise, setHideHlsNoise] = useLocalStorage<boolean>({
+    key: "recordingLogs.hideHlsNoise",
+    defaultValue: true,
   });
 
   const [lineWrap, setLineWrap] = useLocalStorage<boolean>({
@@ -111,84 +106,14 @@ export default function RecordingLogsDialog({ open, onCloseAction, recording }: 
   }, [logsContent]);
 
   // Build structured display items (lines and placeholders) so placeholders can be expanded
-  const displayedItems = useMemo<DisplayItem[] | null>(() => {
+  const displayedItems = useMemo<LogDisplayItem[] | null>(() => {
     if (logsContent === null) return null;
-    const FRAME_LINE_RE = /\bframe=\s*\d+/;
-    // Match timestamped stderr lines with no message after the colon, e.g.:
-    // [2026-02-23T21:58:03.089Z] stderr:
-    const STDERR_ONLY_RE = /^\[.*]\s+stderr:\s*$/;
-    const TIMESTAMP_RE = /^\[(.*?)]\s*(.*)$/; // capture timestamp and the rest
-
-    const lines = logsContent.split(/\r?\n/);
-
-    // Helper to parse a line into timestamp and text
-    const parseLine = (raw: string) => {
-      const m = raw.match(TIMESTAMP_RE);
-      if (m) return { timestamp: m[1], text: m[2] };
-      return { timestamp: null, text: raw };
-    };
-
-    // If no filtering, just return normal line items
-    if (!hideEmptyLines && !hideFrameLines) {
-      return lines.map((raw) => {
-        const p = parseLine(raw);
-        return { type: "line", raw, timestamp: p.timestamp, text: p.text } as LineItem;
-      });
-    }
-
-    const items: DisplayItem[] = [];
-    let hiddenBuffer: string[] = [];
-    let hiddenStartTs: string | null = null;
-    let hiddenEndTs: string | null = null;
-
-    const flushHidden = () => {
-      if (hiddenBuffer.length === 0) return;
-      items.push({
-        type: "placeholder",
-        count: hiddenBuffer.length,
-        lines: hiddenBuffer.slice(),
-        startTimestamp: hiddenStartTs ?? null,
-        endTimestamp: hiddenEndTs ?? null,
-      } as PlaceholderItem);
-      hiddenBuffer = [];
-      hiddenStartTs = null;
-      hiddenEndTs = null;
-    };
-
-    for (let i = 0; i < lines.length; i++) {
-      const raw = lines[i];
-
-      // frame lines buffer
-      if (hideFrameLines && FRAME_LINE_RE.test(raw)) {
-        // capture timestamps for the hidden block if available
-        const p = parseLine(raw);
-        if (p.timestamp) {
-          if (!hiddenStartTs) hiddenStartTs = p.timestamp;
-          hiddenEndTs = p.timestamp;
-        }
-        hiddenBuffer.push(raw);
-        continue;
-      }
-
-      // empty lines or timestamped stderr-only lines should be treated as empty when hideEmptyLines
-      if (hideEmptyLines && (raw.trim() === "" || STDERR_ONLY_RE.test(raw))) {
-        continue;
-      }
-
-      // Non-hidden line: flush any accumulated hidden block first
-      if (hiddenBuffer.length > 0) {
-        flushHidden();
-      }
-
-      const p = parseLine(raw);
-      items.push({ type: "line", raw, timestamp: p.timestamp, text: p.text } as LineItem);
-    }
-
-    // flush at end
-    flushHidden();
-
-    return items;
-  }, [logsContent, hideEmptyLines, hideFrameLines]);
+    return buildRecordingLogDisplayItems(logsContent, {
+      hideEmptyLines,
+      hideFrameLines,
+      hideHlsNoise: hideHlsNoise && /^https?:\/\//i.test(recording?.rtspUrl ?? ""),
+    });
+  }, [logsContent, hideEmptyLines, hideFrameLines, hideHlsNoise, recording?.rtspUrl]);
 
   // Track which placeholders are expanded (by index in displayedItems)
   const [expandedPlaceholders, setExpandedPlaceholders] = useState<Record<number, boolean>>({});
@@ -225,7 +150,7 @@ export default function RecordingLogsDialog({ open, onCloseAction, recording }: 
       {/* Make DialogContent a column and hide its overflow so only the inner log box scrolls */}
       <DialogContent sx={{ display: "flex", flexDirection: "column", overflow: "hidden", gap: 1 }}>
         {/* Options to filter logs */}
-        <Box sx={{ display: "flex", gap: 2, mb: 1, alignItems: "center" }}>
+        <Box sx={{ display: "flex", gap: 2, mb: 1, alignItems: "center", flexWrap: "wrap" }}>
           <FormControlLabel
             control={
               <Checkbox checked={hideEmptyLines} onChange={(e) => setHideEmptyLines(e.target.checked)} size="small" />
@@ -239,6 +164,15 @@ export default function RecordingLogsDialog({ open, onCloseAction, recording }: 
             }
             label="Hide frame lines"
           />
+
+          {/^(?:https?):\/\//i.test(recording?.rtspUrl ?? "") && (
+            <FormControlLabel
+              control={
+                <Checkbox checked={hideHlsNoise} onChange={(e) => setHideHlsNoise(e.target.checked)} size="small" />
+              }
+              label="Hide routine HLS lines"
+            />
+          )}
 
           <FormControlLabel
             control={<Checkbox checked={lineWrap} onChange={(e) => setLineWrap(e.target.checked)} size="small" />}
@@ -334,10 +268,11 @@ export default function RecordingLogsDialog({ open, onCloseAction, recording }: 
               <Box component="div">
                 {displayedItems.map((item, idx) => {
                   if (item.type === "placeholder") {
-                    const ph = item as PlaceholderItem;
+                    const ph = item as LogPlaceholderItem;
                     const start = formatTimestamp(ph.startTimestamp);
                     const end = formatTimestamp(ph.endTimestamp);
-                    const label = `${ph.count} frame lines hidden${start || end ? ` (${start ?? "?"}${start && end ? " - " : ""}${end ?? "?"})` : ""}`;
+                    const description = ph.kind === "hls" ? "routine HLS lines" : "frame lines";
+                    const label = `${ph.count} ${description} hidden${start || end ? ` (${start ?? "?"}${start && end ? " - " : ""}${end ?? "?"})` : ""}`;
                     const isExpanded = expandedPlaceholders[idx];
 
                     return (
@@ -360,18 +295,16 @@ export default function RecordingLogsDialog({ open, onCloseAction, recording }: 
                           <Box sx={{ pl: 2 }}>
                             {ph.lines.map((rawLine, subIdx) => {
                               // parse and render the original lines when expanded
-                              const m = rawLine.match(/^\[(.*?)]\s*(.*)$/);
-                              const ts = m ? m[1] : null;
-                              const text = m ? m[2] : rawLine;
+                              const parsed = parseRecordingLogLine(rawLine);
                               return (
                                 <Box key={subIdx} component="div" sx={{ display: "flex", gap: 1 }}>
                                   {showTimestamps && (
                                     <Box sx={{ color: "text.secondary", minWidth: 200 }}>
-                                      {ts ? formatTimestamp(ts) : ""}
+                                      {parsed.timestamp ? formatTimestamp(parsed.timestamp) : ""}
                                     </Box>
                                   )}
                                   <Box sx={{ fontFamily: "monospace", whiteSpace: lineWrap ? "pre-wrap" : "pre" }}>
-                                    {text}
+                                    {parsed.text}
                                   </Box>
                                 </Box>
                               );
@@ -383,7 +316,7 @@ export default function RecordingLogsDialog({ open, onCloseAction, recording }: 
                   }
 
                   // regular line rendering: split timestamp and content
-                  const line = item as LineItem;
+                  const line = item as LogLineItem;
                   return (
                     <Box key={idx} component="div" sx={{ display: "flex", gap: 1 }}>
                       {showTimestamps && (

@@ -48,7 +48,26 @@ type Props = {
   initialStreams: SavedStream[];
 };
 
-export default function StreamsPageClient({ initialStreams }: Props) {
+function getStreamTypeLabel(streamUrl: string): string {
+  if (streamUrl.startsWith("rtsp://")) return "RTSP";
+  if (/\.m3u8(?:$|\?)/i.test(streamUrl) || /\.live\.ts(?:$|\?)/i.test(streamUrl)) return "HLS";
+  return "HTTP";
+}
+
+function maskStreamCredentials(streamUrl: string): string {
+  try {
+    const parsed = new URL(streamUrl);
+    if (parsed.username || parsed.password) {
+      parsed.username = "****";
+      parsed.password = "";
+    }
+    return parsed.toString();
+  } catch {
+    return streamUrl;
+  }
+}
+
+export default function StreamsPageClient({ initialStreams }: Readonly<Props>) {
   const [streams, setStreams] = useState<SavedStream[]>(initialStreams);
   const [streamStatuses, setStreamStatuses] = useState<Record<string, StreamStatusResult>>({});
   const [loading, setLoading] = useState(false);
@@ -95,7 +114,6 @@ export default function StreamsPageClient({ initialStreams }: Props) {
   }, []);
 
   const [isFetchingStatus, setIsFetchingStatus] = useState(false);
-  const [isInitialChecking, setIsInitialChecking] = useState(true);
   const sseRef = useRef<EventSource | null>(null);
   const [isSseConnected, setIsSseConnected] = useState(false);
 
@@ -160,22 +178,11 @@ export default function StreamsPageClient({ initialStreams }: Props) {
     }
   }, []);
 
-  // Fetch stream statuses on initial load and every 5 minutes
+  // Refresh statuses periodically, but do not probe every stream merely by
+  // opening this page. Individual checks remain available from each row.
   useEffect(() => {
-    let mounted = true;
-    const run = async () => {
-      try {
-        setIsInitialChecking(true);
-        await fetchStreamStatuses();
-      } finally {
-        if (mounted) setIsInitialChecking(false);
-      }
-    };
-
-    run();
     const interval = setInterval(fetchStreamStatuses, 5 * 60 * 1000);
     return () => {
-      mounted = false;
       clearInterval(interval);
       // Close SSE connection on unmount
       if (sseRef.current) {
@@ -348,7 +355,7 @@ export default function StreamsPageClient({ initialStreams }: Props) {
 
   function CopyUrlButton({ stream }: { stream: SavedStream }) {
     return (
-      <Tooltip title="Copy RTSP URL">
+      <Tooltip title="Copy stream URL">
         <IconButton size="small" onClick={() => handleCopyUrl(stream.rtspUrl)}>
           <ContentCopyIcon fontSize="small" />
         </IconButton>
@@ -409,7 +416,7 @@ export default function StreamsPageClient({ initialStreams }: Props) {
             <Box>
               <Typography variant="h6">Quick Access to Your Streams</Typography>
               <Typography variant="body2" color="text.secondary">
-                Save your frequently used RTSP URLs here for quick access when creating recordings.
+                Save your frequently used RTSP and HTTP(S) stream URLs here for quick access when creating recordings.
               </Typography>
             </Box>
           </Box>
@@ -424,7 +431,7 @@ export default function StreamsPageClient({ initialStreams }: Props) {
             No saved streams yet
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Add your RTSP stream URLs here for quick access
+            Add your live stream URLs here for quick access
           </Typography>
           <Button variant="contained" startIcon={<AddIcon />} onClick={() => handleOpenDialog()}>
             Add Your First Stream
@@ -453,13 +460,18 @@ export default function StreamsPageClient({ initialStreams }: Props) {
                           </Typography>
                           {streamStatuses[stream.id] ? (
                             <StreamStatusChip status={streamStatuses[stream.id]} />
-                          ) : isInitialChecking || isSseConnected ? (
+                          ) : isSseConnected ? (
                             <Typography variant="caption" color="text.secondary">
                               Checking...
                             </Typography>
                           ) : null}
                         </Stack>
-                        <Chip label="RTSP" size="small" color="primary" variant="outlined" />
+                        <Chip
+                          label={getStreamTypeLabel(stream.rtspUrl)}
+                          size="small"
+                          color="primary"
+                          variant="outlined"
+                        />
                       </Box>
 
                       {stream.description && (
@@ -483,7 +495,7 @@ export default function StreamsPageClient({ initialStreams }: Props) {
                             p: 0.5,
                             borderRadius: 1,
                           }}>
-                          {stream.rtspUrl.replace(/^(rtsp:\/\/)(.*@)/, "rtsp://****@")}
+                          {maskStreamCredentials(stream.rtspUrl)}
                         </Typography>
                       </Tooltip>
 
@@ -510,7 +522,7 @@ export default function StreamsPageClient({ initialStreams }: Props) {
                 <TableHead>
                   <TableRow>
                     <TableCell>Name</TableCell>
-                    <TableCell>RTSP URL</TableCell>
+                    <TableCell>Stream URL</TableCell>
                     <TableCell>Description</TableCell>
                     <TableCell>Auto Record</TableCell>
                     <TableCell>Added</TableCell>
@@ -531,7 +543,7 @@ export default function StreamsPageClient({ initialStreams }: Props) {
                           {stream.favorite && <StarIcon sx={{ color: "gold" }} />}
                         </Stack>
                       </TableCell>
-                      {/* RTSP URL */}
+                      {/* Stream URL */}
                       <TableCell>
                         <Tooltip title={stream.rtspUrl}>
                           <Typography
@@ -544,7 +556,7 @@ export default function StreamsPageClient({ initialStreams }: Props) {
                               fontFamily: "monospace",
                               fontSize: 12,
                             }}>
-                            {stream.rtspUrl.replace(/^(rtsp:\/\/)(.*@)?/, "")}
+                            {maskStreamCredentials(stream.rtspUrl)}
                           </Typography>
                         </Tooltip>
                       </TableCell>
@@ -570,7 +582,7 @@ export default function StreamsPageClient({ initialStreams }: Props) {
                         <Stack direction="row" alignItems="center" spacing={1}>
                           {streamStatuses[stream.id] ? (
                             <StreamStatusChip status={streamStatuses[stream.id]} />
-                          ) : isInitialChecking || isSseConnected ? (
+                          ) : isSseConnected ? (
                             <Typography variant="caption" color="text.secondary">
                               Checking...
                             </Typography>
@@ -623,12 +635,12 @@ export default function StreamsPageClient({ initialStreams }: Props) {
               placeholder="e.g., Front Door Camera"
             />
             <TextField
-              label="RTSP URL"
+              label="Stream URL"
               fullWidth
               value={formData.rtspUrl}
               onChange={(e) => setFormData({ ...formData, rtspUrl: e.target.value })}
-              placeholder="rtsp://username:password@ip:port/stream"
-              helperText="The full RTSP stream URL including credentials if needed"
+              placeholder="rtsp://camera/stream or https://host/channel.live.ts"
+              helperText="An RTSP or HTTP(S) HLS/MPEG-TS URL, including credentials or tokens if needed"
               slotProps={{
                 input: {
                   startAdornment: (

@@ -139,12 +139,12 @@ export default function RecordingDialog({
           />
 
           <TextField
-            label="RTSP URL"
+            label="Stream URL"
             fullWidth
             value={formData.rtspUrl}
             onChange={(e) => onFormChange({ ...formData, rtspUrl: e.target.value })}
-            placeholder="rtsp://username:password@ip:port/stream"
-            helperText="Enter the full RTSP stream URL"
+            placeholder="rtsp://camera/stream or https://host/channel.live.ts"
+            helperText="Enter an RTSP or HTTP(S) HLS/MPEG-TS stream URL"
           />
 
           <DateTimePicker label="Start Time" value={new Date(formData.startTime)} onChange={onStartTimeChange} />

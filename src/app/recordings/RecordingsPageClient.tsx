@@ -304,6 +304,7 @@ export default function RecordingsPageClient({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: formData.name,
+          rtspUrl: formData.rtspUrl,
           startTime: formData.startTime,
           duration: formData.duration,
           ignoreDuration: formData.ignoreDuration,
@@ -507,7 +508,7 @@ export default function RecordingsPageClient({
             <TableHead>
               <TableRow>
                 <TableCell sx={{ width: { xs: "auto", md: "30%" } }}>Name</TableCell>
-                <TableCell sx={{ width: { xs: "auto", md: "10%" } }}>RTSP URL</TableCell>
+                <TableCell sx={{ width: { xs: "auto", md: "10%" } }}>Stream URL</TableCell>
                 <TableCell sx={{ width: { xs: "auto", md: "10%" } }}>Start Time</TableCell>
                 <TableCell sx={{ width: { xs: "auto", md: "5%" } }}>Duration</TableCell>
                 <TableCell sx={{ width: { xs: "auto", md: "40%" } }}>Status</TableCell>
