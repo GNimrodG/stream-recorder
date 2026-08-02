@@ -1,5 +1,10 @@
+FROM node:26-alpine AS base
+
+# Install corepack and enable it to use the correct version of yarn
+RUN npm install -g corepack && corepack enable
+
 # Build stage
-FROM node:20-alpine AS builder
+FROM base AS builder
 
 WORKDIR /app
 
@@ -17,11 +22,11 @@ RUN yarn build
 
 # Shared runtime base. The FFmpeg integration-test image derives from this
 # exact stage so it exercises the same Ubuntu FFmpeg build as production.
-FROM nvidia/cuda:12.3.1-runtime-ubuntu22.04 AS runtime-base
+FROM nvidia/cuda:13.3.1-runtime-ubuntu26.04 AS runtime-base
 
 WORKDIR /app
 
-# Install Node.js 24 and ffmpeg with NVIDIA hardware acceleration support
+# Install Node.js 26 and ffmpeg with NVIDIA hardware acceleration support
 RUN apt-get update && apt-get install -y \
     curl \
     ca-certificates \
@@ -63,8 +68,7 @@ COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 
 # Create directories for data and recordings
-RUN mkdir -p /app/data /app/recordings /app/logs /tmp
-RUN chown -R nextjs:nodejs /app/data /app/recordings /app/logs /tmp
+RUN mkdir -p /app/data /app/recordings /app/logs /tmp && chown -R nextjs:nodejs /app/data /app/recordings /app/logs /tmp
 
 # Declare volumes for persistent data
 VOLUME ["/app/data", "/app/recordings", "/app/logs"]
