@@ -505,6 +505,15 @@ export default function StreamsPageClient({ initialStreams }: Readonly<Props>) {
                         <CopyUrlButton stream={stream} />
                         <EditButton stream={stream} />
                         <DeleteButton streamId={stream.id} />
+                        <Tooltip title="Check stream status">
+                          <IconButton
+                            size="small"
+                            color="primary"
+                            disabled={isFetchingStatus || streamChecking}
+                            onClick={() => fetchStreamStatus(stream.id)}>
+                            <RefreshIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
                       </Box>
                     </CardContent>
                   </Card>
@@ -549,7 +558,7 @@ export default function StreamsPageClient({ initialStreams }: Readonly<Props>) {
                           <Typography
                             variant="body2"
                             sx={{
-                              maxWidth: 200,
+                              maxWidth: 300,
                               overflow: "hidden",
                               textOverflow: "ellipsis",
                               whiteSpace: "nowrap",
@@ -579,10 +588,10 @@ export default function StreamsPageClient({ initialStreams }: Readonly<Props>) {
                       </TableCell>
                       {/* Status */}
                       <TableCell>
-                        <Stack direction="row" alignItems="center" spacing={1}>
+                        <Stack direction="row" alignItems="center" spacing={1} sx={{ minWidth: 100 }}>
                           {streamStatuses[stream.id] ? (
                             <StreamStatusChip status={streamStatuses[stream.id]} />
-                          ) : isSseConnected ? (
+                          ) : isSseConnected || isFetchingStatus ? (
                             <Typography variant="caption" color="text.secondary">
                               Checking...
                             </Typography>
@@ -605,7 +614,12 @@ export default function StreamsPageClient({ initialStreams }: Readonly<Props>) {
                         </Stack>
                       </TableCell>
                       <TableCell align="right">
-                        <Stack direction="row" alignItems="center" justifyContent="flex-end" spacing={0.5}>
+                        <Stack
+                          direction="row"
+                          alignItems="center"
+                          justifyContent="flex-end"
+                          spacing={0.5}
+                          sx={{ minWidth: 100 }}>
                           <CaptureSnapshotButton stream={stream} />
                           <QuickRecordButton stream={stream} />
                           <CopyUrlButton stream={stream} />

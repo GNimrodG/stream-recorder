@@ -625,11 +625,6 @@ export default function RecordingsPageClient({
                             </IconButton>
                           </Tooltip>
                         )}
-                        <Tooltip title="View Logs">
-                          <IconButton color="inherit" size="small" onClick={() => setLogsRecording(recording)}>
-                            <ArticleIcon />
-                          </IconButton>
-                        </Tooltip>
 
                         {(recording.status === "recording" || recording.status === "retrying") && (
                           <Tooltip title="Stop">
@@ -708,6 +703,11 @@ export default function RecordingsPageClient({
                             </Tooltip>
                           </>
                         )}
+                        <Tooltip title="View Logs">
+                          <IconButton color="inherit" size="small" onClick={() => setLogsRecording(recording)}>
+                            <ArticleIcon />
+                          </IconButton>
+                        </Tooltip>
                         <Tooltip title="Delete">
                           <IconButton color="error" size="small" onClick={() => handleDeleteRecording(recording.id)}>
                             <DeleteIcon />

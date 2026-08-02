@@ -53,7 +53,12 @@ type Props = {
   };
 };
 
-export default function DashboardClient({ initialRecordings, initialStats, storageStats, initialNow }: Readonly<Props>) {
+export default function DashboardClient({
+  initialRecordings,
+  initialStats,
+  storageStats,
+  initialNow,
+}: Readonly<Props>) {
   const timelineRef = useRef<RecordingTimelineHandle>(null);
   const [recordings, setRecordings] = useState<RecordingWithStatus[]>(initialRecordings);
   const [stats, setStats] = useState<RecordingStats>(initialStats);
@@ -554,11 +559,6 @@ export default function DashboardClient({ initialRecordings, initialStats, stora
                               </Tooltip>
                             </>
                           )}
-                          <Tooltip title="View Logs">
-                            <IconButton color="inherit" size="small" onClick={() => setLogsRecording(recording)}>
-                              <ArticleIcon />
-                            </IconButton>
-                          </Tooltip>
                           {recording.status === "scheduled" && (
                             <>
                               <Tooltip title="Edit">
@@ -586,6 +586,11 @@ export default function DashboardClient({ initialRecordings, initialStats, stora
                               </IconButton>
                             </Tooltip>
                           )}
+                          <Tooltip title="View Logs">
+                            <IconButton color="inherit" size="small" onClick={() => setLogsRecording(recording)}>
+                              <ArticleIcon />
+                            </IconButton>
+                          </Tooltip>
                           <Tooltip title="Delete">
                             <IconButton color="error" onClick={() => handleDeleteRecording(recording.id)}>
                               <DeleteIcon />
