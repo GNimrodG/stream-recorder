@@ -72,6 +72,7 @@ describe("Docker FFmpeg generated arguments", () => {
   let workspace: string;
   let fixturePath: string;
   let streamUrl: string;
+  let cmafStreamUrl: string;
   let server: Server;
 
   beforeAll(async () => {
@@ -117,8 +118,85 @@ describe("Docker FFmpeg generated arguments", () => {
     ]);
     expectSuccess(fixtureResult, "fixture generation");
 
+    const cmafDirectory = path.join(workspace, "cmaf");
+    await mkdir(cmafDirectory, { recursive: true });
+    const cmafFixtureResult = await runProcess(ffmpegPath, [
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-f",
+      "lavfi",
+      "-i",
+      "testsrc2=size=320x180:rate=15",
+      "-f",
+      "lavfi",
+      "-i",
+      "sine=frequency=1000:sample_rate=48000",
+      "-t",
+      "4",
+      "-c:v",
+      "libx264",
+      "-preset",
+      "ultrafast",
+      "-g",
+      "15",
+      "-pix_fmt",
+      "yuv420p",
+      "-c:a",
+      "aac",
+      "-b:a",
+      "64k",
+      "-f",
+      "hls",
+      "-hls_segment_type",
+      "fmp4",
+      "-hls_time",
+      "1",
+      "-hls_list_size",
+      "0",
+      "-hls_fmp4_init_filename",
+      "init.mp4",
+      "-hls_segment_filename",
+      path.join(cmafDirectory, "segment%d.m4s"),
+      "-y",
+      path.join(cmafDirectory, "playlist.m3u8"),
+    ]);
+    expectSuccess(cmafFixtureResult, "CMAF HLS fixture generation");
+
     const fixture = await readFile(fixturePath);
-    server = createServer((_request, response) => {
+    server = createServer(async (request, response) => {
+      const requestPath = new URL(request.url || "/", "http://127.0.0.1").pathname;
+      if (requestPath.startsWith("/cmaf/")) {
+        const fileName = path.basename(requestPath);
+        if (!/^(?:playlist\.m3u8|init\.mp4|segment\d+\.m4s)$/.test(fileName)) {
+          response.writeHead(404).end();
+          return;
+        }
+
+        try {
+          const content = await readFile(path.join(cmafDirectory, fileName));
+          const contentType = fileName.endsWith(".m3u8")
+            ? "application/vnd.apple.mpegurl"
+            : fileName.endsWith(".m4s")
+              ? "video/iso.segment"
+              : "video/mp4";
+          response.writeHead(200, {
+            "Content-Type": contentType,
+            "Content-Length": content.length,
+            "Cache-Control": "no-store",
+          });
+          response.end(content);
+        } catch {
+          response.writeHead(404).end();
+        }
+        return;
+      }
+
+      if (requestPath !== "/camera.live.ts") {
+        response.writeHead(404).end();
+        return;
+      }
+
       response.writeHead(200, {
         "Content-Type": "video/mp2t",
         "Content-Length": fixture.length,
@@ -142,6 +220,7 @@ describe("Docker FFmpeg generated arguments", () => {
     });
     const port = await listen(server);
     streamUrl = `http://127.0.0.1:${port}/camera.live.ts`;
+    cmafStreamUrl = `http://127.0.0.1:${port}/cmaf/playlist.m3u8`;
 
     const settingsPath = process.env.SETTINGS_FILE_PATH || path.join(workspace, "settings.json");
     await mkdir(path.dirname(settingsPath), { recursive: true });
@@ -168,10 +247,16 @@ describe("Docker FFmpeg generated arguments", () => {
 
   it("records, previews, and snapshots an HTTP transport stream with generated params", async () => {
     const { buildFFmpegArgs, buildFFmpegArgsForPreview } = await import("../../src/lib/ffmpeg");
+    const { detectHttpMediaContainer } = await import("../../src/lib/httpMedia");
     const { generateSnapshotArgs, loadSettings } = await import("../../src/lib/settings");
 
     const recordingPath = path.join(workspace, "recording.mp4");
-    const recordingResult = await runProcess(ffmpegPath, buildFFmpegArgs(streamUrl, recordingPath, 0.8));
+    const mediaContainer = await detectHttpMediaContainer(streamUrl);
+    expect(mediaContainer).toBe("mpegts");
+    const recordingResult = await runProcess(
+      ffmpegPath,
+      buildFFmpegArgs(streamUrl, recordingPath, 0.8, mediaContainer),
+    );
     expectSuccess(recordingResult, "recording arguments");
     expect((await stat(recordingPath)).size).toBeGreaterThan(1024);
 
@@ -197,12 +282,24 @@ describe("Docker FFmpeg generated arguments", () => {
     expect(previewResult.stdout.includes(Buffer.from("ftyp"))).toBe(true);
 
     const snapshotPath = path.join(workspace, "snapshot.jpg");
-    const snapshotResult = await runProcess(
-      ffmpegPath,
-      generateSnapshotArgs(streamUrl, snapshotPath, loadSettings()),
-    );
+    const snapshotResult = await runProcess(ffmpegPath, generateSnapshotArgs(streamUrl, snapshotPath, loadSettings()));
     expectSuccess(snapshotResult, "snapshot arguments");
     expect((await stat(snapshotPath)).size).toBeGreaterThan(512);
+  });
 
+  it("records CMAF/fMP4 HLS without parsing its audio as ADTS", async () => {
+    const { buildFFmpegArgs } = await import("../../src/lib/ffmpeg");
+    const { detectHttpMediaContainer } = await import("../../src/lib/httpMedia");
+    const recordingPath = path.join(workspace, "cmaf-recording.mp4");
+    const mediaContainer = await detectHttpMediaContainer(cmafStreamUrl);
+    expect(mediaContainer).toBe("fmp4");
+    const args = buildFFmpegArgs(cmafStreamUrl, recordingPath, 0.8, mediaContainer);
+
+    expect(args).not.toContain("aac_adtstoasc");
+
+    const recordingResult = await runProcess(ffmpegPath, args);
+    expectSuccess(recordingResult, "CMAF HLS recording arguments");
+    expect(recordingResult.stderr).not.toMatch(/Error parsing ADTS|Multiple RDBs per frame/i);
+    expect((await stat(recordingPath)).size).toBeGreaterThan(1024);
   });
 });

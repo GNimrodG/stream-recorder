@@ -5,6 +5,7 @@ import { getStreamUrlKind } from "@/lib/streamUrl";
 import { generateSnapshotArgs, loadSettings } from "@/lib/settings";
 import { spawn, spawnSync } from "node:child_process";
 import { Settings } from "@/types/settings";
+import { HttpMediaContainer } from "@/lib/httpMedia";
 import { isRunningInDocker } from "./runtime";
 
 /**
@@ -165,7 +166,12 @@ function getNetworkInputArgs(streamUrl: string, timeoutUs: string, settings: Set
   ];
 }
 
-export function buildFFmpegArgs(streamUrl: string, outputPath: string, duration: number): string[] {
+export function buildFFmpegArgs(
+  streamUrl: string,
+  outputPath: string,
+  duration: number,
+  httpMediaContainer: HttpMediaContainer = "unknown",
+): string[] {
   const settings = loadSettings();
   const args: string[] = [];
   const rtspIoTimeoutUs = Math.max(0, Math.floor((settings.rtspSocketTimeoutMs ?? 10000) * 1000)).toString();
@@ -214,10 +220,11 @@ export function buildFFmpegArgs(streamUrl: string, outputPath: string, duration:
   // Audio codec
   if (settings.audioCodec === "copy") {
     args.push("-c:a", "copy");
-    // FFmpeg 4.4 (used by the production Ubuntu image) does not always
-    // auto-insert this conversion when AAC arrives in ADTS/MPEG-TS from HLS.
-    // Without it, copying HLS audio into MP4 fails while newer local builds work.
-    if (settings.outputFormat === "mp4" && getStreamUrlKind(streamUrl) === "http") {
+    // Do not force aac_adtstoasc based on the URL protocol. HLS can carry AAC
+    // in either MPEG-TS/ADTS or CMAF/fMP4. Applying the ADTS parser to CMAF
+    // packets corrupts otherwise valid audio. Add it only after probing the
+    // response and positively identifying MPEG-TS.
+    if (settings.outputFormat === "mp4" && httpMediaContainer === "mpegts") {
       args.push("-bsf:a", "aac_adtstoasc");
     }
   } else {

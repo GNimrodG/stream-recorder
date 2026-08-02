@@ -4,10 +4,11 @@ import { clearInterval } from "node:timers";
 import { loadSettings } from "@/lib/settings";
 import fs from "node:fs";
 import { buildFFmpegArgs, mergeRecordingParts } from "@/lib/ffmpeg";
+import { detectHttpMediaContainer, HttpMediaContainer } from "@/lib/httpMedia";
 import path from "node:path";
 import { ChildProcessWithoutNullStreams, spawn } from "node:child_process";
 import { getAllRecordings, saveRecordings } from "@/lib/recordings";
-import { isSupportedStreamUrl, normalizeStreamUrl, supportedStreamUrlError } from "@/lib/streamUrl";
+import { getStreamUrlKind, isSupportedStreamUrl, normalizeStreamUrl, supportedStreamUrlError } from "@/lib/streamUrl";
 
 type RecordingManagerGlobal = typeof globalThis & {
   __streamRecorderRecordingManagers?: Map<string, RecordingManager>;
@@ -93,6 +94,8 @@ export class RecordingManager {
   private initialStartTime?: string;
   private readonly attemptPaths: string[];
   private recordingEndedAt?: string; // Tracks when the actual recording ended (FFmpeg process closed)
+  private httpMediaContainer: HttpMediaContainer = "unknown";
+  private hasProbedHttpMediaContainer = false;
 
   private scheduledStartTimeout: NodeJS.Timeout | null = null;
   private startWaiterTimer: NodeJS.Timeout | null = null;
@@ -466,8 +469,19 @@ export class RecordingManager {
       fs.mkdirSync(this.OUTPUT_DIR, { recursive: true });
     }
 
+    if (!this.hasProbedHttpMediaContainer && getStreamUrlKind(this.url) === "http") {
+      const probeTimeoutMs = loadSettings().streamStatusResponseTimeoutMs;
+      this.httpMediaContainer = await detectHttpMediaContainer(this.url, probeTimeoutMs);
+      this.hasProbedHttpMediaContainer = this.httpMediaContainer !== "unknown";
+      this.log(`Detected HTTP media container: ${this.httpMediaContainer}`);
+    }
     const duration = this.getRemainingDuration();
-    const ffmpegArgs = buildFFmpegArgs(this.url, outputPath, this.ignoreDuration ? -1 : duration);
+    const ffmpegArgs = buildFFmpegArgs(
+      this.url,
+      outputPath,
+      this.ignoreDuration ? -1 : duration,
+      this.httpMediaContainer,
+    );
 
     this.log(`Running FFMpeg with params: ${ffmpegArgs.join(" ")}`);
 
