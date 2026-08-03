@@ -12,6 +12,11 @@ export default defineConfig({
     include: ["test/integration/docker-ffmpeg.test.ts"],
     testTimeout: 60_000,
     hookTimeout: 60_000,
-    threads: false,
+    pool: "forks",
+    poolOptions: {
+      forks: {
+        singleFork: true,
+      },
+    },
   },
 });
