@@ -4,6 +4,7 @@ import { CreateRecordingDto, RecordingFilterStatus } from "@/types/recording";
 import { ensureAppRuntimeInitialized } from "@/lib/runtime";
 import { isSupportedStreamUrl, normalizeStreamUrl, supportedStreamUrlError } from "@/lib/streamUrl";
 import { aggregateRecordingStatuses } from "@/lib/sync/aggregateStatus";
+import { scheduleDebouncedSync } from "@/lib/sync/scheduler";
 
 export function ensureInitialized() {
   ensureAppRuntimeInitialized();
@@ -80,6 +81,7 @@ export async function POST(request: NextRequest) {
     }
 
     const recording = createRecording(body);
+    scheduleDebouncedSync();
     return NextResponse.json(recording, { status: 201 });
   } catch (error) {
     console.error("Error creating recording:", error);

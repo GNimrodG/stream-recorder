@@ -36,9 +36,11 @@ const menuItems = [
 type Props = {
   currentPath: string;
   session: Session | null;
+  instanceName: string;
+  hostname: string;
 };
 
-export default function SidebarClient({ currentPath, session }: Props) {
+export default function SidebarClient({ currentPath, session, instanceName, hostname }: Props) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const handleDrawerToggle = () => {
@@ -47,10 +49,21 @@ export default function SidebarClient({ currentPath, session }: Props) {
 
   const drawer = (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      <Toolbar>
+      <Toolbar
+        sx={{ flexDirection: "column", alignItems: "flex-start", justifyContent: "center", height: "auto", py: 1.5 }}>
         <Typography variant="h6" noWrap component="div" sx={{ fontWeight: "bold" }}>
           StreamRec
         </Typography>
+        {!!instanceName && (
+          <Typography variant="caption" color="text.secondary" noWrap sx={{ maxWidth: "100%" }}>
+            {instanceName}
+          </Typography>
+        )}
+        {instanceName !== hostname && !!hostname && (
+          <Typography variant="caption" color="text.secondary" noWrap sx={{ maxWidth: "100%" }}>
+            {hostname}
+          </Typography>
+        )}
       </Toolbar>
       <Divider />
       <List sx={{ flexGrow: 1 }}>

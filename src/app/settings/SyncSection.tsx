@@ -40,6 +40,7 @@ interface InstanceIdentityResponse extends InstanceIdentity {
 export default function SyncSection() {
   const [identity, setIdentity] = useState<InstanceIdentityResponse | null>(null);
   const [peers, setPeers] = useState<PublicSyncPeer[]>([]);
+  const [syncingPeerId, setSyncingPeerId] = useState<string | null>(null);
   const [instanceName, setInstanceName] = useState("");
   const [publicUrl, setPublicUrl] = useState("");
   const [savingIdentity, setSavingIdentity] = useState(false);
@@ -169,6 +170,21 @@ export default function SyncSection() {
       body: JSON.stringify({ enabled: !peer.enabled }),
     });
     await fetchPeers();
+  };
+
+  const handleSyncPeer = async (peer: PublicSyncPeer) => {
+    setSyncingPeerId(peer.id);
+    try {
+      const response = await fetch(`/api/sync/peers/${peer.id}/sync`, { method: "POST" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Sync failed");
+      notify(`Synced with ${peer.name}`);
+    } catch (error) {
+      notify((error as Error).message, "error");
+    } finally {
+      setSyncingPeerId(null);
+      await fetchPeers();
+    }
   };
 
   const handleDeletePeer = async (peer: PublicSyncPeer) => {
@@ -325,6 +341,20 @@ export default function SyncSection() {
                         <Switch checked={peer.enabled} onChange={() => handleTogglePeer(peer)} size="small" />
                       </TableCell>
                       <TableCell align="right">
+                        <Tooltip title="Sync now">
+                          <span>
+                            <IconButton
+                              size="small"
+                              onClick={() => handleSyncPeer(peer)}
+                              disabled={syncingPeerId === peer.id}>
+                              {syncingPeerId === peer.id ? (
+                                <CircularProgress size={16} />
+                              ) : (
+                                <SyncIcon fontSize="small" />
+                              )}
+                            </IconButton>
+                          </span>
+                        </Tooltip>
                         <Tooltip title="Remove">
                           <IconButton size="small" color="error" onClick={() => handleDeletePeer(peer)}>
                             <DeleteIcon fontSize="small" />

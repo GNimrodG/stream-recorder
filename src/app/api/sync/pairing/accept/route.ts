@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getInstanceIdentity } from "@/lib/instanceIdentity";
 import { decodePairingCode } from "@/lib/sync/pairing";
+import { pushToPeer } from "@/lib/sync/client";
 import { toPublicPeer, upsertPeerByInstanceId } from "@/lib/syncPeers";
 
 export async function POST(request: NextRequest) {
@@ -49,6 +50,10 @@ export async function POST(request: NextRequest) {
       baseUrl: remote.baseUrl,
       remoteApiKey: remote.apiKey,
     });
+
+    // Don't make the user wait for the next scheduled tick to see their first sync — kick one
+    // off now, in the background, so it doesn't hold up the pairing response.
+    pushToPeer(peer).catch((error) => console.error(`Initial sync with newly linked peer ${peer.name} failed:`, error));
 
     return NextResponse.json(toPublicPeer(peer), { status: 201 });
   } catch (error) {

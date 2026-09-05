@@ -31,16 +31,18 @@ afterEach(() => {
 });
 
 describe("sync scheduler", () => {
-  it("only registers its interval once across repeated init calls", async () => {
+  it("runs an immediate sync on init and does not double-register on repeated init calls", async () => {
     getEnabledPeersMock.mockReturnValue([]);
     const { ensureSyncSchedulerInitialized } = await import("@/lib/sync/scheduler");
 
     ensureSyncSchedulerInitialized();
     ensureSyncSchedulerInitialized();
 
+    expect(getEnabledPeersMock).toHaveBeenCalledTimes(1);
+
     await vi.advanceTimersByTimeAsync(5 * 60 * 1000);
 
-    expect(getEnabledPeersMock).toHaveBeenCalledTimes(1);
+    expect(getEnabledPeersMock).toHaveBeenCalledTimes(2);
   });
 
   it("pushes to every enabled peer sequentially and keeps going if one fails", async () => {
@@ -77,5 +79,48 @@ describe("sync scheduler", () => {
     await Promise.all([firstTick, secondTick]);
 
     expect(pushToPeerMock).toHaveBeenCalledTimes(1);
+  });
+
+  describe("scheduleDebouncedSync", () => {
+    it("does nothing when there are no enabled peers", async () => {
+      getEnabledPeersMock.mockReturnValue([]);
+      const { scheduleDebouncedSync } = await import("@/lib/sync/scheduler");
+
+      scheduleDebouncedSync(8000);
+      await vi.advanceTimersByTimeAsync(8000);
+
+      expect(pushToPeerMock).not.toHaveBeenCalled();
+    });
+
+    it("syncs once after the debounce delay elapses", async () => {
+      const peer = { id: "a", name: "A" };
+      getEnabledPeersMock.mockReturnValue([peer]);
+      pushToPeerMock.mockResolvedValue(undefined);
+      const { scheduleDebouncedSync } = await import("@/lib/sync/scheduler");
+
+      scheduleDebouncedSync(8000);
+      await vi.advanceTimersByTimeAsync(7999);
+      expect(pushToPeerMock).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(1);
+      expect(pushToPeerMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("collapses a burst of calls within the debounce window into a single sync", async () => {
+      const peer = { id: "a", name: "A" };
+      getEnabledPeersMock.mockReturnValue([peer]);
+      pushToPeerMock.mockResolvedValue(undefined);
+      const { scheduleDebouncedSync } = await import("@/lib/sync/scheduler");
+
+      scheduleDebouncedSync(8000);
+      await vi.advanceTimersByTimeAsync(4000);
+      scheduleDebouncedSync(8000);
+      await vi.advanceTimersByTimeAsync(4000);
+      scheduleDebouncedSync(8000);
+
+      await vi.advanceTimersByTimeAsync(8000);
+
+      expect(pushToPeerMock).toHaveBeenCalledTimes(1);
+    });
   });
 });

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getInstanceIdentity } from "@/lib/instanceIdentity";
 import { consumePairingToken } from "@/lib/sync/pairing";
+import { pushToPeer } from "@/lib/sync/client";
 import { upsertPeerByInstanceId } from "@/lib/syncPeers";
 
 /**
@@ -20,12 +21,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Pairing code is invalid or has expired" }, { status: 401 });
     }
 
-    upsertPeerByInstanceId({
+    const peer = upsertPeerByInstanceId({
       instanceId: body.instanceId,
       name: body.name,
       baseUrl: body.baseUrl,
       remoteApiKey: body.apiKey,
     });
+
+    // Don't make the user wait for the next scheduled tick to see their first sync — kick one
+    // off now, in the background, so it doesn't hold up the pairing handshake response.
+    pushToPeer(peer).catch((error) => console.error(`Initial sync with newly linked peer ${peer.name} failed:`, error));
 
     const identity = getInstanceIdentity();
     return NextResponse.json({

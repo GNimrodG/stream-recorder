@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { pushToPeer } from "@/lib/sync/client";
 import { createPeer, getAllPeers, toPublicPeer } from "@/lib/syncPeers";
 
 export async function GET() {
@@ -22,6 +23,10 @@ export async function POST(request: NextRequest) {
       remoteApiKey: body.remoteApiKey,
       instanceId: body.instanceId,
     });
+
+    // Don't make the user wait for the next scheduled tick to see their first sync — kick one
+    // off now, in the background, so it doesn't hold up the response.
+    pushToPeer(peer).catch((error) => console.error(`Initial sync with newly added peer ${peer.name} failed:`, error));
 
     return NextResponse.json(toPublicPeer(peer), { status: 201 });
   } catch (error) {

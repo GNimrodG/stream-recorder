@@ -4,6 +4,7 @@ import { Recording } from "@/types/recording";
 import { RecordingManager } from "@/lib/RecordingManager";
 import { ensureInitialized } from "@/app/api/recordings/route";
 import { aggregateRecordingStatuses } from "@/lib/sync/aggregateStatus";
+import { scheduleDebouncedSync } from "@/lib/sync/scheduler";
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   ensureInitialized();
@@ -30,6 +31,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: "Recording not found" }, { status: 404 });
     }
 
+    scheduleDebouncedSync();
     return NextResponse.json(recording);
   } catch (error) {
     if (error instanceof Error) {
@@ -47,6 +49,7 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
     return NextResponse.json({ error: "Recording not found" }, { status: 404 });
   }
 
+  scheduleDebouncedSync();
   return NextResponse.json({ success: true });
 }
 
