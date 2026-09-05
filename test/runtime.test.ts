@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { ensureRecordingsInitializedMock, ensureAutoRecordingSchedulerInitializedMock } = vi.hoisted(() => ({
-  ensureRecordingsInitializedMock: vi.fn(),
-  ensureAutoRecordingSchedulerInitializedMock: vi.fn(),
-}));
+const { ensureRecordingsInitializedMock, ensureAutoRecordingSchedulerInitializedMock, ensureSyncSchedulerInitializedMock } =
+  vi.hoisted(() => ({
+    ensureRecordingsInitializedMock: vi.fn(),
+    ensureAutoRecordingSchedulerInitializedMock: vi.fn(),
+    ensureSyncSchedulerInitializedMock: vi.fn(),
+  }));
 
 vi.mock("@/lib/recordings", () => ({
   ensureRecordingsInitialized: ensureRecordingsInitializedMock,
@@ -13,11 +15,16 @@ vi.mock("@/lib/autoRecordingScheduler", () => ({
   ensureAutoRecordingSchedulerInitialized: ensureAutoRecordingSchedulerInitializedMock,
 }));
 
+vi.mock("@/lib/sync/scheduler", () => ({
+  ensureSyncSchedulerInitialized: ensureSyncSchedulerInitializedMock,
+}));
+
 beforeEach(() => {
   delete (globalThis as typeof globalThis & { __streamRecorderRuntimeInitialized?: boolean })
     .__streamRecorderRuntimeInitialized;
   ensureRecordingsInitializedMock.mockReset();
   ensureAutoRecordingSchedulerInitializedMock.mockReset();
+  ensureSyncSchedulerInitializedMock.mockReset();
   vi.resetModules();
 });
 
@@ -37,5 +44,6 @@ describe("app runtime initialization", () => {
 
     expect(ensureRecordingsInitializedMock).toHaveBeenCalledTimes(1);
     expect(ensureAutoRecordingSchedulerInitializedMock).toHaveBeenCalledTimes(1);
+    expect(ensureSyncSchedulerInitializedMock).toHaveBeenCalledTimes(1);
   });
 });

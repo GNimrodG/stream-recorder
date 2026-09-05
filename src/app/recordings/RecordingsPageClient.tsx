@@ -308,6 +308,7 @@ export default function RecordingsPageClient({
           startTime: formData.startTime,
           duration: formData.duration,
           ignoreDuration: formData.ignoreDuration,
+          executionInstanceId: formData.executionInstanceId,
         }),
       });
 
@@ -440,6 +441,7 @@ export default function RecordingsPageClient({
       startTime: recording.startTime,
       duration: recording.duration,
       ignoreDuration: recording.ignoreDuration || false,
+      executionInstanceId: recording.executionInstanceId,
     });
     setRecordingDialogState({ mode: "edit", recording });
   };

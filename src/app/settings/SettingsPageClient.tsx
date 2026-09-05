@@ -41,6 +41,7 @@ import NumberField from "@/components/inputs/NumberField";
 import FormHelperText from "@mui/material/FormHelperText";
 import type { getStorageStats } from "@/lib/storage";
 import { LinearProgressWithLabelAndValue } from "@/components/LinearProgressWithLabelAndValue";
+import SyncSection from "@/app/settings/SyncSection";
 
 interface HardwareAccelInfo {
   nvidia: boolean;
@@ -701,6 +702,9 @@ export default function SettingsPageClient({
             </CardContent>
           </Card>
         </Box>
+
+        {/* Sync Between Instances */}
+        <SyncSection />
       </Box>
 
       {/* Actions */}

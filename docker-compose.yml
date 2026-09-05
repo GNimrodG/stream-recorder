@@ -22,6 +22,13 @@ services:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,video,utility
       - AUTH_AUTHENTIK_CLIENT_SECRET=your_secret_key_here
+      # Optional: override where instance-sync state is stored (see SYNC.md). Defaults shown.
+      # - INSTANCE_FILE_PATH=/app/data/instance.json
+      # - SYNC_PEERS_FILE_PATH=/app/data/sync-peers.json
+      # - SYNC_TOMBSTONES_FILE_PATH=/app/data/sync-tombstones.json
+      # Optional: name shown to other instances when pairing (see SYNC.md). Defaults to the
+      # container's hostname, which is a random container ID unless set below or via `hostname:`.
+      # - INSTANCE_NAME=home
     deploy:
       resources:
         reservations:

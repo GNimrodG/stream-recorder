@@ -9,6 +9,7 @@ import path from "node:path";
 import { ChildProcessWithoutNullStreams, spawn } from "node:child_process";
 import { getAllRecordings, saveRecordings } from "@/lib/recordings";
 import { getStreamUrlKind, isSupportedStreamUrl, normalizeStreamUrl, supportedStreamUrlError } from "@/lib/streamUrl";
+import { getLocalInstanceId, shouldExecuteLocally } from "@/lib/instanceIdentity";
 
 type RecordingManagerGlobal = typeof globalThis & {
   __streamRecorderRecordingManagers?: Map<string, RecordingManager>;
@@ -27,6 +28,31 @@ export class RecordingManager {
 
   public static getInstance(id: string): RecordingManager | null {
     return RecordingManager.instances.get(id) || null;
+  }
+
+  /** Ids of every manager currently tracked by this process, running or scheduled. */
+  public static getAllIds(): string[] {
+    return Array.from(RecordingManager.instances.keys());
+  }
+
+  /** Removes a manager that should no longer run locally (e.g. reassigned to another linked instance). */
+  public static disposeInstance(id: string): void {
+    RecordingManager.instances.get(id)?.dispose();
+  }
+
+  public dispose(): void {
+    // A manager can be disposed after its FFmpeg process has already started (e.g. a sync
+    // merge reassigns or deletes the recording mid-recording) — stop() aborts that process so
+    // it doesn't keep running untracked; for a not-yet-started manager this only clears the
+    // scheduled-start timer.
+    if (this.hasStarted()) {
+      this.stop();
+    }
+    if (this.scheduledStartTimeout) {
+      clearTimeout(this.scheduledStartTimeout);
+      this.scheduledStartTimeout = null;
+    }
+    RecordingManager.instances.delete(this.id);
   }
 
   private readonly OUTPUT_DIR: string;
@@ -241,6 +267,12 @@ export class RecordingManager {
     if (!recording) {
       this.log(`Cannot start recording because it was not found in the recordings list.`);
       this.status = "failed";
+      return;
+    }
+
+    if (!shouldExecuteLocally(recording, getLocalInstanceId())) {
+      this.log("Recording is now assigned to a different linked instance; not starting locally.");
+      this.dispose();
       return;
     }
 
@@ -693,6 +725,11 @@ export class RecordingManager {
 
     if (!recording) {
       this.log(`Could not find recording with ID ${this.id} to finish.`);
+      return;
+    }
+
+    if (!shouldExecuteLocally(recording, getLocalInstanceId())) {
+      this.log(`Recording ${this.id} is no longer executed by this instance; discarding local result.`);
       return;
     }
 

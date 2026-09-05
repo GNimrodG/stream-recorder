@@ -23,6 +23,14 @@ describe("StreamsPageClient UI", () => {
         return new Response(JSON.stringify([]), { status: 200 });
       }
 
+      if (url === "/api/sync/instance") {
+        return Response.json({ instanceId: "local", syncApiKey: "key", name: "Local", createdAt: "2026-01-01T00:00:00.000Z" });
+      }
+
+      if (url === "/api/sync/peers") {
+        return new Response(JSON.stringify([]), { status: 200 });
+      }
+
       throw new Error(`Unexpected fetch call: ${method} ${url}`);
     });
 

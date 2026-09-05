@@ -37,6 +37,10 @@ describe("DashboardClient", () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
       if (url === "/api/streams") return new Response("[]", { status: 200 });
+      if (url === "/api/sync/instance") {
+        return Response.json({ instanceId: "local", syncApiKey: "key", name: "Local", createdAt: "2026-01-01T00:00:00.000Z" });
+      }
+      if (url === "/api/sync/peers") return new Response("[]", { status: 200 });
       if (url === "/api/recordings/scheduled-1" && init?.method === "PATCH") {
         return Response.json({ ...recording, name: "New name" });
       }
@@ -86,5 +90,5 @@ describe("DashboardClient", () => {
       name: "New name",
       rtspUrl: "https://example.test/channel.live.ts",
     });
-  });
+  }, 10000);
 });

@@ -111,6 +111,7 @@ export default function DashboardClient({
       startTime: recording.startTime,
       duration: recording.duration,
       ignoreDuration: recording.ignoreDuration ?? false,
+      executionInstanceId: recording.executionInstanceId,
     });
     setDialogOpen(true);
   };
