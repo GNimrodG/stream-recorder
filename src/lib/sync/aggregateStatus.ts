@@ -108,7 +108,15 @@ export async function aggregateRecordingStatuses(recordings: RecordingWithStatus
   return recordings.map((recording) => {
     const execId = recording.executionInstanceId;
 
-    if (!execId || execId === localInstanceId || execId === ALL_INSTANCES) {
+    // Every linked instance runs its own independent copy of an "all"-scoped recording — label
+    // it as such instead of the local instance's name, which would hide that it's also running
+    // elsewhere (and would show a different, equally misleading name depending on which linked
+    // instance's dashboard you're viewing it from).
+    if (execId === ALL_INSTANCES) {
+      return { ...recording, instanceName: "All linked instances" };
+    }
+
+    if (!execId || execId === localInstanceId) {
       return { ...recording, instanceName: localName };
     }
 
