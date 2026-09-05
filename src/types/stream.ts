@@ -9,6 +9,8 @@ export interface SavedStream {
   updatedAt: string;
   favorite?: boolean;
   autoRecordWhenLive?: boolean;
+  originInstanceId?: string; // Instance that created this stream (attribution only)
+  executionInstanceId?: string; // Instance that should auto-record this stream, or the literal "all"
 }
 
 export interface StreamStatusResult {

@@ -1,5 +1,5 @@
 import { STATUS_CONFIG } from "@/lib/status-config";
-import { Stack, Tooltip, Typography } from "@mui/material";
+import { Chip, Stack, Tooltip, Typography } from "@mui/material";
 import type { FC } from "react";
 import { RecordingWithStatus } from "@/types/recording";
 import ErrorIcon from "@mui/icons-material/Announcement";
@@ -21,6 +21,17 @@ const StatusDisplay: FC<StatusDisplayProps> = ({ recording }) => {
         color={config?.color || "default"}
         size="small"
       />
+
+      {recording.instanceName && (
+        <Tooltip title={recording.instanceUnreachable ? "This linked instance couldn't be reached" : recording.instanceName}>
+          <Chip
+            label={recording.instanceUnreachable ? `${recording.instanceName} (offline)` : recording.instanceName}
+            color={recording.instanceUnreachable ? "default" : "info"}
+            variant="outlined"
+            size="small"
+          />
+        </Tooltip>
+      )}
 
       {recording.errorMessage && (
         <Tooltip title={recording.errorMessage}>

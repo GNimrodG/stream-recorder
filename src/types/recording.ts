@@ -24,6 +24,8 @@ export interface Recording {
   errorMessage?: string;
   ignoreDuration?: boolean;
   attemptPaths?: string[]; // Part files retained for retry and process-restart recovery
+  originInstanceId?: string; // Instance that created this recording (attribution only)
+  executionInstanceId?: string; // Instance that should run FFmpeg for this recording, or the literal "all"
 }
 
 export interface RecordingWithStatus extends Recording {
@@ -34,6 +36,8 @@ export interface RecordingWithStatus extends Recording {
   bitrate?: string;
   speed?: number;
   isIgnoringLiveStatus: boolean;
+  instanceName?: string; // Resolved display name of the executing instance ("Local" or a peer's name)
+  instanceUnreachable?: boolean; // Set when the executing peer couldn't be reached for a live status merge
 }
 
 export interface CreateRecordingDto {
@@ -42,6 +46,7 @@ export interface CreateRecordingDto {
   startTime: string;
   duration: number;
   ignoreDuration?: boolean;
+  executionInstanceId?: string;
 }
 
 export type RecordingStats = {

@@ -2,6 +2,7 @@ import { RecordingManager } from "@/lib/RecordingManager";
 import { createRecording, getAllRecordings } from "@/lib/recordings";
 import { checkStreamStatus } from "@/lib/rtsp";
 import { getAllStreams } from "@/lib/streams";
+import { getLocalInstanceId, shouldExecuteLocally } from "@/lib/instanceIdentity";
 
 const STATUS_CHECK_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 const AUTO_RECORDING_DURATION_SECONDS = 24 * 60 * 60; // 24 hours
@@ -36,9 +37,15 @@ function stopRecordingById(recordingId: string, reason: string) {
 function rehydrateActiveAutoRecordings() {
   activeAutoRecordingByStreamId.clear();
 
+  const localInstanceId = getLocalInstanceId();
   const recordings = getAllRecordings();
   for (const recording of recordings) {
-    if (!recording.autoStopWhenStreamOffline || !recording.sourceStreamId || recording.success !== undefined) {
+    if (
+      !recording.autoStopWhenStreamOffline ||
+      !recording.sourceStreamId ||
+      recording.success !== undefined ||
+      !shouldExecuteLocally(recording, localInstanceId)
+    ) {
       continue;
     }
 
@@ -98,8 +105,13 @@ async function runAutoRecordingTick() {
   tickInProgress = true;
 
   try {
+    const localInstanceId = getLocalInstanceId();
     const streams = getAllStreams();
-    const autoEnabledStreams = streams.filter((stream) => stream.autoRecordWhenLive);
+    // A mirrored stream from a peer is only auto-recorded here if it's explicitly assigned
+    // to this instance (or to "all" instances) — otherwise the owning peer already handles it.
+    const autoEnabledStreams = streams.filter(
+      (stream) => stream.autoRecordWhenLive && shouldExecuteLocally(stream, localInstanceId),
+    );
     const enabledStreamIds = new Set(autoEnabledStreams.map((stream) => stream.id));
 
     for (const [streamId, recordingId] of activeAutoRecordingByStreamId.entries()) {

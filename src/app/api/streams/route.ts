@@ -26,6 +26,7 @@ export async function POST(request: NextRequest) {
       description: body.description,
       favorite: body.favorite,
       autoRecordWhenLive: body.autoRecordWhenLive,
+      executionInstanceId: body.executionInstanceId,
     });
 
     return NextResponse.json(stream, { status: 201 });

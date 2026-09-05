@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import { ensureAutoRecordingSchedulerInitialized } from "@/lib/autoRecordingScheduler";
 import { ensureRecordingsInitialized } from "@/lib/recordings";
+import { ensureSyncSchedulerInitialized } from "@/lib/sync/scheduler";
 
 type AppRuntimeGlobal = typeof globalThis & {
   __streamRecorderRuntimeInitialized?: boolean;
@@ -17,6 +18,7 @@ export function ensureAppRuntimeInitialized() {
 
   ensureRecordingsInitialized();
   ensureAutoRecordingSchedulerInitialized();
+  ensureSyncSchedulerInitialized();
   appRuntimeGlobal.__streamRecorderRuntimeInitialized = true;
 }
 

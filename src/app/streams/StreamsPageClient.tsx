@@ -13,11 +13,15 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  FormControl,
   FormControlLabel,
   Grid,
   IconButton,
   InputAdornment,
+  InputLabel,
+  MenuItem,
   Paper,
+  Select,
   Snackbar,
   Stack,
   Table,
@@ -43,6 +47,7 @@ import RadioButtonCheckedIcon from "@mui/icons-material/RadioButtonChecked";
 import { SavedStream, StreamStatusResult } from "@/types/stream";
 import { formatDate } from "@/utils";
 import StreamStatusChip from "@/components/StreamStatusChip";
+import { useSyncPeers } from "@/hooks/useSyncPeers";
 
 type Props = {
   initialStreams: SavedStream[];
@@ -86,6 +91,7 @@ export default function StreamsPageClient({ initialStreams }: Readonly<Props>) {
 
   const [streamChecking, setStreamChecking] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const { localInstanceId, options: instanceOptions } = useSyncPeers(dialogOpen);
 
   const [formData, setFormData] = useState<Omit<SavedStream, "id" | "createdAt" | "updatedAt">>({
     name: "",
@@ -694,6 +700,22 @@ export default function StreamsPageClient({ initialStreams }: Readonly<Props>) {
               }
               label="Auto-record while stream is live (checked every 5 minutes)"
             />
+
+            {formData.autoRecordWhenLive && instanceOptions.length > 2 && (
+              <FormControl fullWidth>
+                <InputLabel>Record on</InputLabel>
+                <Select
+                  value={formData.executionInstanceId || localInstanceId}
+                  label="Record on"
+                  onChange={(e) => setFormData({ ...formData, executionInstanceId: e.target.value })}>
+                  {instanceOptions.map((option) => (
+                    <MenuItem key={option.id} value={option.id}>
+                      {option.label}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            )}
           </Box>
         </DialogContent>
         <DialogActions>

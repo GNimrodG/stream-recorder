@@ -11,6 +11,8 @@ import path from "node:path";
 import { RecordingManager } from "@/lib/RecordingManager";
 import { runStorageCleanup } from "@/lib/storage";
 import { isSupportedStreamUrl, normalizeStreamUrl, supportedStreamUrlError } from "@/lib/streamUrl";
+import { getLocalInstanceId, isDeleteAuthoritative, shouldExecuteLocally } from "@/lib/instanceIdentity";
+import { addTombstone } from "@/lib/syncTombstones";
 
 const RECORDINGS_FILE = process.env.RECORDINGS_DB_PATH || "./data/recordings.json";
 const RECORDINGS_OUTPUT_DIR = process.env.RECORDINGS_OUTPUT_DIR || "./recordings";
@@ -220,6 +222,7 @@ export function createRecording(data: {
   sourceStreamId?: string;
   autoStopWhenStreamOffline?: boolean;
   ignoreDuration?: boolean;
+  executionInstanceId?: string;
 }): Recording {
   const recordings = loadRecordings();
   const now = new Date().toISOString();
@@ -227,6 +230,8 @@ export function createRecording(data: {
   if (!isSupportedStreamUrl(streamUrl)) {
     throw new Error(supportedStreamUrlError());
   }
+
+  const localInstanceId = getLocalInstanceId();
 
   const recording: Recording = {
     id: randomUUID(),
@@ -240,14 +245,50 @@ export function createRecording(data: {
     attemptPaths: [],
     createdAt: now,
     updatedAt: now,
+    originInstanceId: localInstanceId,
+    executionInstanceId: data.executionInstanceId ?? localInstanceId,
   };
 
   recordings.push(recording);
   saveRecordings(recordings);
 
-  createRecordingManager(recording);
+  // A recording can be created here but assigned to run on a different (or every) linked
+  // instance — only spin up FFmpeg locally when this instance is actually responsible for it.
+  if (shouldExecuteLocally(recording, localInstanceId)) {
+    createRecordingManager(recording);
+  }
 
   return recording;
+}
+
+/**
+ * Reconciles locally-tracked RecordingManagers with the store after a sync merge, since a peer
+ * sync can delete a recording, reassign it away from this instance, or bring in/reassign one to
+ * us — none of which go through updateRecording's own manager bookkeeping.
+ */
+export function reconcileRecordingExecution(): void {
+  const recordings = loadRecordings();
+  const localInstanceId = getLocalInstanceId();
+  const recordingById = new Map(recordings.map((recording) => [recording.id, recording]));
+
+  // Release any manager whose recording a merge just deleted or reassigned away from this
+  // instance — otherwise it keeps recording/running untracked, invisible to the UI.
+  for (const id of RecordingManager.getAllIds()) {
+    const recording = recordingById.get(id);
+    if (!recording || !shouldExecuteLocally(recording, localInstanceId)) {
+      RecordingManager.disposeInstance(id);
+    }
+  }
+
+  for (const recording of recordings) {
+    if (
+      recording.success === undefined &&
+      shouldExecuteLocally(recording, localInstanceId) &&
+      !RecordingManager.getInstance(recording.id)
+    ) {
+      createRecordingManager(recording);
+    }
+  }
 }
 
 export function updateRecording(id: string, data: Partial<Recording>): Recording | null {
@@ -256,6 +297,10 @@ export function updateRecording(id: string, data: Partial<Recording>): Recording
 
   if (index === -1) {
     return null;
+  }
+
+  if (!shouldExecuteLocally(recordings[index], getLocalInstanceId())) {
+    throw new Error("This recording is executed by another linked instance — edit it there instead");
   }
 
   let recordingManager = RecordingManager.getInstance(id);
@@ -306,6 +351,12 @@ export function updateRecording(id: string, data: Partial<Recording>): Recording
   recordings[index] = updatedRecording;
   saveRecordings(recordings);
 
+  // Reassigning execution away from this instance — release the local manager so it
+  // doesn't fire later; the newly-assigned instance will pick it up on its next sync.
+  if (!shouldExecuteLocally(updatedRecording, getLocalInstanceId())) {
+    RecordingManager.disposeInstance(id);
+  }
+
   return updatedRecording;
 }
 
@@ -317,23 +368,41 @@ export function deleteRecording(id: string): boolean {
     return false;
   }
 
-  if (recordings[index].success === undefined) {
-    const recordingManager = RecordingManager.getInstance(id);
-
-    if (recordingManager) {
-      recordingManager.stop();
-    }
-  }
-
   const recording = recordings[index];
+  const localInstanceId = getLocalInstanceId();
+  const isLocal = shouldExecuteLocally(recording, localInstanceId);
 
-  // Delete output file if exists
-  if (recording.outputPath && fs.existsSync(recording.outputPath)) {
-    fs.unlinkSync(recording.outputPath);
+  if (isLocal) {
+    if (recording.success === undefined) {
+      const recordingManager = RecordingManager.getInstance(id);
+
+      if (recordingManager) {
+        recordingManager.stop();
+      }
+    }
+
+    // Delete output file if exists — only meaningful when this instance actually recorded it;
+    // a mirrored copy's outputPath refers to a file on the executing peer's disk, not this one.
+    if (recording.outputPath && fs.existsSync(recording.outputPath)) {
+      fs.unlinkSync(recording.outputPath);
+    }
   }
 
   recordings.splice(index, 1);
   saveRecordings(recordings);
+
+  // Only write a tombstone when deleting an item this instance has delete authority over —
+  // deleting a mirrored copy of another instance's recording (or, for an "all"-instances
+  // recording, a non-origin instance's own independent copy) just stops mirroring/running it
+  // locally; it must not propagate as an authoritative delete that removes other instances' copies.
+  if (isDeleteAuthoritative(recording, localInstanceId)) {
+    addTombstone({
+      id,
+      collection: "recordings",
+      deletedAt: new Date().toISOString(),
+      originInstanceId: localInstanceId,
+    });
+  }
 
   return true;
 }
@@ -360,9 +429,10 @@ export function getRecordingStats(): RecordingStats {
 // Initialize: reschedule any pending recordings on startup
 export function initializeRecordings(): void {
   const recordings = loadRecordings();
+  const localInstanceId = getLocalInstanceId();
 
   recordings.forEach((recording) => {
-    if (recording.success === undefined) {
+    if (recording.success === undefined && shouldExecuteLocally(recording, localInstanceId)) {
       createRecordingManager(recording);
     }
   });

@@ -6,6 +6,12 @@ import { isAuthDisabled } from "@/auth";
 // Define public routes that don't require authentication
 const publicRoutes = ["/login", "/api/auth", "/auth-debug"];
 
+// Sync endpoints called server-to-server by a linked instance, never by a browser with a
+// session — each authenticates itself independently (bearer sync API key, or a single-use
+// pairing token), so gating them behind a login redirect would just break instance linking:
+// the peer gets an HTML login page back where it expected JSON.
+const publicSyncRoutes = new Set(["/api/sync/exchange", "/api/sync/status", "/api/sync/pairing/complete"]);
+
 export async function proxy(request: NextRequest) {
   const next = () => {
     const requestHeaders = new Headers(request.headers);
@@ -29,6 +35,11 @@ export async function proxy(request: NextRequest) {
 
   // Allow public routes
   if (isPublicRoute) {
+    return next();
+  }
+
+  // Allow self-authenticating sync endpoints called by other instances
+  if (publicSyncRoutes.has(pathname)) {
     return next();
   }
 

@@ -3,6 +3,7 @@ import { deleteRecording, getRecordingWithStatsById, updateRecording } from "@/l
 import { Recording } from "@/types/recording";
 import { RecordingManager } from "@/lib/RecordingManager";
 import { ensureInitialized } from "@/app/api/recordings/route";
+import { aggregateRecordingStatuses } from "@/lib/sync/aggregateStatus";
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   ensureInitialized();
@@ -14,7 +15,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: "Recording not found" }, { status: 404 });
   }
 
-  return NextResponse.json(recording);
+  const [withInstance] = await aggregateRecordingStatuses([recording]);
+  return NextResponse.json(withInstance);
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {

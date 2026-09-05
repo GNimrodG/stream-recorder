@@ -24,6 +24,7 @@ import { SavedStream } from "@/types/stream";
 import DurationInput from "@/components/inputs/DurationInput";
 import { useCallback, useEffect, useState } from "react";
 import FormHelperText from "@mui/material/FormHelperText";
+import { useSyncPeers } from "@/hooks/useSyncPeers";
 
 interface RecordingDialogProps {
   open: boolean;
@@ -46,6 +47,7 @@ export default function RecordingDialog({
 }: Readonly<RecordingDialogProps>) {
   const [selectedStreamId, setSelectedStreamId] = useState<string>("");
   const [savedStreams, setSavedStreams] = useState<SavedStream[]>([]);
+  const { localInstanceId, options: instanceOptions } = useSyncPeers(open);
 
   useEffect(() => {
     const fetchSavedStreams = async () => {
@@ -128,6 +130,23 @@ export default function RecordingDialog({
                 <Chip label="or enter manually" size="small" />
               </Divider>
             </>
+          )}
+
+          {instanceOptions.length > 2 && (
+            <FormControl fullWidth>
+              <InputLabel>Record on</InputLabel>
+              <Select
+                value={formData.executionInstanceId || localInstanceId}
+                label="Record on"
+                onChange={(e) => onFormChange({ ...formData, executionInstanceId: e.target.value })}>
+                {instanceOptions.map((option) => (
+                  <MenuItem key={option.id} value={option.id}>
+                    {option.label}
+                  </MenuItem>
+                ))}
+              </Select>
+              <FormHelperText>Which linked instance should actually run this recording</FormHelperText>
+            </FormControl>
           )}
 
           <TextField

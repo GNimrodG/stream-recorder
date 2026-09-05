@@ -3,6 +3,7 @@ import { createRecording, getAllRecordingsWithStats, getPaginatedRecordingsWithS
 import { CreateRecordingDto, RecordingFilterStatus } from "@/types/recording";
 import { ensureAppRuntimeInitialized } from "@/lib/runtime";
 import { isSupportedStreamUrl, normalizeStreamUrl, supportedStreamUrlError } from "@/lib/streamUrl";
+import { aggregateRecordingStatuses } from "@/lib/sync/aggregateStatus";
 
 export function ensureInitialized() {
   ensureAppRuntimeInitialized();
@@ -39,7 +40,7 @@ export async function GET(request: NextRequest) {
   const hasPaginatedQuery = searchParams.has("page") || searchParams.has("pageSize") || searchParams.has("status");
 
   if (!hasPaginatedQuery) {
-    const recordings = getAllRecordingsWithStats();
+    const recordings = await aggregateRecordingStatuses(getAllRecordingsWithStats());
     return NextResponse.json(recordings);
   }
 
@@ -48,6 +49,7 @@ export async function GET(request: NextRequest) {
   const status = parseStatus(searchParams.get("status"));
 
   const paginatedRecordings = getPaginatedRecordingsWithStats({ page, pageSize, status });
+  paginatedRecordings.data = await aggregateRecordingStatuses(paginatedRecordings.data);
   return NextResponse.json(paginatedRecordings);
 }
 
