@@ -185,15 +185,16 @@ export function buildFFmpegArgs(
     args.push(...getHardwareAccelArgs(settings.hardwareAcceleration));
   }
 
-  args.push("-nostdin", "-hide_banner", "-use_wallclock_as_timestamps", "1");
+  args.push("-nostdin", "-hide_banner");
 
   args.push("-loglevel", settings.logLevel || "info");
 
   args.push(...getNetworkInputArgs(streamUrl, rtspIoTimeoutUs, settings));
 
-  // Buffer size settings for better handling of network jitter
-  // Larger buffers help handle temporary network issues without dropping the connection and ignore DTS issues
-  args.push("-fflags", "+genpts+igndts+discardcorrupt");
+  // RTSP and MPEG-TS sources always carry their own valid PTS/DTS, so we trust
+  // them instead of overriding with wallclock-derived timestamps (which bakes
+  // local network/processing jitter into the recording) or discarding DTS.
+  args.push("-fflags", "+genpts+discardcorrupt");
   args.push("-flags", "low_delay");
 
   // Increase probe size and analyze duration to better handle stream initialization
@@ -270,7 +271,7 @@ export function buildFFmpegArgsForPreview(streamUrl: string): string[] {
     "error",
     ...getNetworkInputArgs(streamUrl, rtspIoTimeoutUs, settings),
     "-fflags",
-    "+genpts+igndts+discardcorrupt",
+    "+genpts+discardcorrupt",
     "-flags",
     "low_delay",
     "-probesize",

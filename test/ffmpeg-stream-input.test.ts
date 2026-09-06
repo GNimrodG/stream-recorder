@@ -54,4 +54,23 @@ describe("FFmpeg stream input arguments", () => {
     expect(args).not.toContain("-reconnect_streamed");
     expect(args).not.toContain("-bsf:a");
   });
+
+  it("trusts the source's own PTS/DTS instead of wallclock timestamps, for both RTSP and HTTP", async () => {
+    const { buildFFmpegArgs } = await import("../src/lib/ffmpeg");
+    const rtspArgs = buildFFmpegArgs("rtsp://camera.local/live", "output.mp4", 60);
+    const httpArgs = buildFFmpegArgs("https://example.test/channel.live.ts", "output.mp4", 60);
+
+    for (const args of [rtspArgs, httpArgs]) {
+      expect(args).not.toContain("-use_wallclock_as_timestamps");
+      expect(args[args.indexOf("-fflags") + 1]).toBe("+genpts+discardcorrupt");
+    }
+  });
+
+  it("trusts the source's own PTS/DTS in the live preview pipeline too", async () => {
+    const { buildFFmpegArgsForPreview } = await import("../src/lib/ffmpeg");
+    const args = buildFFmpegArgsForPreview("rtsp://camera.local/live");
+
+    expect(args).not.toContain("-use_wallclock_as_timestamps");
+    expect(args[args.indexOf("-fflags") + 1]).toBe("+genpts+discardcorrupt");
+  });
 });
