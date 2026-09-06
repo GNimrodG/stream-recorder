@@ -14,12 +14,15 @@ vi.mock("node:os", async (importOriginal) => {
 let temporaryDirectory: string;
 let previousInstanceFilePath: string | undefined;
 let previousInstanceName: string | undefined;
+let previousSyncPeersFilePath: string | undefined;
 
 beforeEach(() => {
   temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "stream-recorder-instance-identity-"));
   previousInstanceFilePath = process.env.INSTANCE_FILE_PATH;
   previousInstanceName = process.env.INSTANCE_NAME;
+  previousSyncPeersFilePath = process.env.SYNC_PEERS_FILE_PATH;
   process.env.INSTANCE_FILE_PATH = path.join(temporaryDirectory, "instance.json");
+  process.env.SYNC_PEERS_FILE_PATH = path.join(temporaryDirectory, "sync-peers.json");
   delete process.env.INSTANCE_NAME;
   vi.resetModules();
 });
@@ -35,8 +38,31 @@ afterEach(() => {
   } else {
     process.env.INSTANCE_NAME = previousInstanceName;
   }
+  if (previousSyncPeersFilePath === undefined) {
+    delete process.env.SYNC_PEERS_FILE_PATH;
+  } else {
+    process.env.SYNC_PEERS_FILE_PATH = previousSyncPeersFilePath;
+  }
   fs.rmSync(temporaryDirectory, { recursive: true, force: true });
 });
+
+function seedOnePeer() {
+  fs.writeFileSync(
+    process.env.SYNC_PEERS_FILE_PATH!,
+    JSON.stringify([
+      {
+        id: "peer-row-1",
+        instanceId: "peer-instance",
+        name: "Peer",
+        baseUrl: "http://peer.test",
+        remoteApiKey: "key",
+        enabled: true,
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+    ]),
+  );
+}
 
 describe("instance name defaults", () => {
   it("defaults a freshly-created instance's name to the machine hostname", async () => {
@@ -65,5 +91,51 @@ describe("instance name defaults", () => {
     const { getInstanceIdentity, updateInstanceIdentity } = await import("@/lib/instanceIdentity");
     updateInstanceIdentity({ name: "Renamed Instance" });
     expect(getInstanceIdentity().name).toBe("Renamed Instance");
+  });
+});
+
+describe("isDeleteAuthoritative", () => {
+  it("gives the origin instance delete authority even when a linked peer executes the item", async () => {
+    seedOnePeer();
+    const { isDeleteAuthoritative } = await import("@/lib/instanceIdentity");
+
+    const item = { id: "1", updatedAt: "2026-01-01T00:00:00.000Z", originInstanceId: "local", executionInstanceId: "peer-instance" };
+
+    // Sanity check this scenario actually exercises the gap the origin check exists for:
+    // without it, a coordinator-only node that never executes anything would never be
+    // authoritative over its own creations.
+    const { shouldExecuteLocally } = await import("@/lib/instanceIdentity");
+    expect(shouldExecuteLocally(item, "local")).toBe(false);
+
+    expect(isDeleteAuthoritative(item, "local")).toBe(true);
+  });
+
+  it("denies delete authority to an instance that neither originated nor executes the item", async () => {
+    seedOnePeer();
+    const { isDeleteAuthoritative } = await import("@/lib/instanceIdentity");
+
+    const item = { id: "1", updatedAt: "2026-01-01T00:00:00.000Z", originInstanceId: "peer-instance", executionInstanceId: "peer-instance" };
+
+    expect(isDeleteAuthoritative(item, "local")).toBe(false);
+  });
+
+  it("gives the executing instance delete authority when it isn't the origin", async () => {
+    seedOnePeer();
+    const { isDeleteAuthoritative } = await import("@/lib/instanceIdentity");
+
+    const item = { id: "1", updatedAt: "2026-01-01T00:00:00.000Z", originInstanceId: "peer-instance", executionInstanceId: "local" };
+
+    expect(isDeleteAuthoritative(item, "local")).toBe(true);
+  });
+
+  it("only the origin instance may delete an \"all\"-scoped item", async () => {
+    seedOnePeer();
+    const { isDeleteAuthoritative } = await import("@/lib/instanceIdentity");
+
+    const ownItem = { id: "1", updatedAt: "2026-01-01T00:00:00.000Z", originInstanceId: "local", executionInstanceId: "all" };
+    const foreignItem = { id: "2", updatedAt: "2026-01-01T00:00:00.000Z", originInstanceId: "peer-instance", executionInstanceId: "all" };
+
+    expect(isDeleteAuthoritative(ownItem, "local")).toBe(true);
+    expect(isDeleteAuthoritative(foreignItem, "local")).toBe(false);
   });
 });

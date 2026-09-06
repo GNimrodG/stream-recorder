@@ -102,13 +102,21 @@ export function shouldExecuteLocally(item: Syncable, localInstanceId: string): b
 /**
  * Whether this instance may write an authoritative delete tombstone for `item` — i.e. whether
  * deleting it here should propagate as a real deletion to every linked instance, rather than
- * just removing this instance's own local copy. For an item assigned to a specific instance
- * that's the same as "runs here" (shouldExecuteLocally). An "all"-instances item has no single
- * executor — every instance runs its own independent copy — so only the instance that originally
- * created it may delete it everywhere; any other instance's delete just stops mirroring its own
- * copy, the same as deleting a mirrored copy of a specific-instance item.
+ * just removing this instance's own local copy. The instance that originally created an item is
+ * always authoritative over its lifecycle, even if it delegates execution elsewhere (e.g. a
+ * coordinator-only node that schedules recordings for a linked instance to actually run, but
+ * never executes anything itself) — without this, such a node could never cancel its own
+ * creations, since it never satisfies shouldExecuteLocally. Otherwise, for an item assigned to a
+ * specific instance, authority is the same as "runs here" (shouldExecuteLocally). An
+ * "all"-instances item has no single executor — every instance runs its own independent copy —
+ * so absent origin authority, only the instance that originally created it may delete it
+ * everywhere; any other instance's delete just stops mirroring its own copy, the same as
+ * deleting a mirrored copy of a specific-instance item.
  */
 export function isDeleteAuthoritative(item: Syncable, localInstanceId: string): boolean {
+  if (item.originInstanceId === localInstanceId) {
+    return true;
+  }
   if (item.executionInstanceId === ALL_INSTANCES) {
     return item.originInstanceId === undefined || item.originInstanceId === localInstanceId;
   }
