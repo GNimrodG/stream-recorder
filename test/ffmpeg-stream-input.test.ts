@@ -8,8 +8,6 @@ vi.mock("@/lib/settings", async (importOriginal) => {
   return { ...actual, loadSettings: loadSettingsMock };
 });
 
-vi.mock("@/lib/runtime", () => ({ isRunningInDocker: () => false }));
-
 describe("FFmpeg stream input arguments", () => {
   beforeEach(() => {
     loadSettingsMock.mockReturnValue({ ...defaultSettings, reconnectDelay: 6 });

@@ -2,11 +2,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { parseCustomFFmpegArgs } from "@/lib/ffmpegArgs";
 import { getStreamUrlKind } from "@/lib/streamUrl";
-import { generateSnapshotArgs, loadSettings } from "@/lib/settings";
+import { generateSnapshotArgs, loadSettings, resolveRtspTimeoutFlag } from "@/lib/settings";
 import { spawn, spawnSync } from "node:child_process";
 import { Settings } from "@/types/settings";
 import { HttpMediaContainer } from "@/lib/httpMedia";
-import { isRunningInDocker } from "./runtime";
 
 /**
  * Merges multiple recording part files into a single final recording using FFmpeg's concat demuxer.
@@ -149,7 +148,7 @@ function getNetworkInputArgs(streamUrl: string, timeoutUs: string, settings: Set
       settings.rtspTransport,
       "-rtsp_flags",
       "prefer_tcp",
-      isRunningInDocker() ? "-stimeout" : "-timeout",
+      resolveRtspTimeoutFlag(settings.ffmpegPath),
       timeoutUs,
     ];
   }

@@ -52,6 +52,10 @@ export class RecordingManager {
       clearTimeout(this.scheduledStartTimeout);
       this.scheduledStartTimeout = null;
     }
+    if (this.retryTimer) {
+      clearTimeout(this.retryTimer);
+      this.retryTimer = null;
+    }
     RecordingManager.instances.delete(this.id);
   }
 
@@ -125,6 +129,12 @@ export class RecordingManager {
 
   private scheduledStartTimeout: NodeJS.Timeout | null = null;
   private startWaiterTimer: NodeJS.Timeout | null = null;
+  private retryTimer: NodeJS.Timeout | null = null;
+  // Consecutive FFmpeg attempts that exited without ever receiving a frame. Reset the
+  // moment an attempt actually produces a frame, so this only tracks the "FFmpeg dies
+  // immediately every time" failure mode (e.g. a bad argument) rather than genuine
+  // mid-recording drops, which already retry immediately via the block below.
+  private consecutiveFailedStarts = 0;
 
   /**
    * Creates a new RecordingManager instance for a specific stream.
@@ -571,6 +581,7 @@ export class RecordingManager {
     this.process!.on("close", (code, signal) => {
       // Record when the actual recording ended
       this.recordingEndedAt = new Date().toISOString();
+      const hadFrames = this.frameCount > 0;
 
       this.log(`FFmpeg process exited with code ${code} and signal ${signal || "none"}`);
 
@@ -625,15 +636,58 @@ export class RecordingManager {
 
       const remaining = this.getRemainingDuration();
 
-      if (remaining > 0) {
-        this.log(`Recording stopped before completion, ${remaining.toFixed(1)} seconds remaining. Will retry...`);
-        this.status = "retrying";
-        this._start();
-      } else {
+      if (remaining <= 0) {
         this.log("Recording completed successfully.");
         this.status = "completed";
         this.finish();
+        return;
       }
+
+      this.status = "retrying";
+
+      if (hadFrames) {
+        // A real mid-recording drop after a working connection — reconnect as fast as
+        // possible to minimize the gap, and trust that FFmpeg can talk to the source again.
+        this.consecutiveFailedStarts = 0;
+        this.log(`Recording stopped before completion, ${remaining.toFixed(1)} seconds remaining. Will retry...`);
+        this._start();
+        return;
+      }
+
+      // FFmpeg exited without ever producing a frame — most likely a persistent problem
+      // (a bad argument, an unreachable source) rather than a transient network drop.
+      // Retrying instantly, forever, would spin as fast as FFmpeg can fail; back off and
+      // cap it the same way startWaiter() already does while waiting for a stream to go live.
+      this.consecutiveFailedStarts++;
+      const settings = loadSettings();
+      const maxFailedStarts = settings.reconnectAttempts;
+
+      if (maxFailedStarts !== -1 && this.consecutiveFailedStarts >= maxFailedStarts) {
+        this.log(
+          `FFmpeg failed to produce any frames ${this.consecutiveFailedStarts} time(s) in a row. Giving up.`,
+        );
+        this.status = this.attemptPaths.length > 0 ? "completed" : "failed";
+        this.finish(
+          `FFmpeg failed to start ${this.consecutiveFailedStarts} times in a row.` +
+            (this.attemptPaths.length > 0 ? " Recording completed with available parts." : ""),
+        );
+        return;
+      }
+
+      const delaySeconds = Math.max(1, settings.reconnectDelay || 5);
+      this.log(
+        `FFmpeg exited without producing frames (attempt ${this.consecutiveFailedStarts}). Retrying in ${delaySeconds}s...`,
+      );
+      this.retryTimer = setTimeout(() => {
+        this.retryTimer = null;
+        if (this.abortController.signal.aborted) {
+          this.log("Recording was aborted while waiting to retry.");
+          this.status = "cancelled";
+          this.finish("Recording was cancelled.");
+          return;
+        }
+        this._start();
+      }, delaySeconds * 1000);
     });
 
     this.process!.on("error", (err) => {

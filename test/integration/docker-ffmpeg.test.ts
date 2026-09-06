@@ -203,8 +203,8 @@ describe("Docker FFmpeg generated arguments", () => {
         "Cache-Control": "no-store",
       });
 
-      // Throttle the fixture so FFmpeg observes live wall-clock timestamps,
-      // matching the behavior that buildFFmpegArgs is designed for.
+      // Throttle the fixture to simulate realistic live-delivery pacing,
+      // matching the network conditions buildFFmpegArgs is designed for.
       let offset = 0;
       const interval = setInterval(() => {
         if (offset >= fixture.length) {
@@ -301,5 +301,18 @@ describe("Docker FFmpeg generated arguments", () => {
     expectSuccess(recordingResult, "CMAF HLS recording arguments");
     expect(recordingResult.stderr).not.toMatch(/Error parsing ADTS|Multiple RDBs per frame/i);
     expect((await stat(recordingPath)).size).toBeGreaterThan(1024);
+  });
+
+  it("builds RTSP arguments FFmpeg actually accepts (regression test for the -stimeout/-timeout rename)", async () => {
+    const { buildFFmpegArgs } = await import("../../src/lib/ffmpeg");
+    // Port 1 has nothing listening, so this fails fast with a connection error — the
+    // point is only to confirm FFmpeg gets past argument parsing on the RTSP branch.
+    const args = buildFFmpegArgs("rtsp://127.0.0.1:1/does-not-exist", path.join(workspace, "rtsp-attempt.mp4"), 1);
+    expect(args).not.toContain("-stimeout");
+
+    const result = await runProcess(ffmpegPath, args, 8000);
+    expect(result.stderr, `RTSP arguments used an unsupported FFmpeg option:\n${result.stderr}`).not.toMatch(
+      /Unrecognized option|Option not found|Error parsing options/i,
+    );
   });
 });

@@ -134,6 +134,26 @@ export function detectHardwareAcceleration(): HardwareAccelInfo {
   return info;
 }
 
+const rtspTimeoutFlagCache = new Map<string, "-timeout" | "-stimeout">();
+
+// FFmpeg renamed the RTSP demuxer's socket-timeout option from "-stimeout" to
+// "-timeout"; older builds only accept the former, current builds reject it
+// outright ("Unrecognized option"). Probe the actual binary instead of
+// guessing from the environment, since the installed FFmpeg version is
+// independent of this codebase (e.g. whatever a Docker base image ships).
+export function resolveRtspTimeoutFlag(ffmpegPath: string): "-timeout" | "-stimeout" {
+  const cached = rtspTimeoutFlagCache.get(ffmpegPath);
+  if (cached) return cached;
+
+  const output = runFfmpegSync(ffmpegPath, ["-hide_banner", "-h", "full"]).output;
+  const hasModernTimeout = output.includes("-timeout");
+  const hasLegacyStimeout = output.includes("-stimeout");
+  const flag = !hasModernTimeout && hasLegacyStimeout ? "-stimeout" : "-timeout";
+
+  rtspTimeoutFlagCache.set(ffmpegPath, flag);
+  return flag;
+}
+
 // Generate a snapshot from a supported live stream.
 export function generateSnapshotArgs(streamUrl: string, outputPath: string, settings: Settings): string[] {
   const args: string[] = [];
@@ -143,7 +163,7 @@ export function generateSnapshotArgs(streamUrl: string, outputPath: string, sett
   if (getStreamUrlKind(streamUrl) === "rtsp") {
     args.push("-rtsp_transport", settings.rtspTransport);
     args.push("-rtsp_flags", "prefer_tcp");
-    args.push("-stimeout", rtspIoTimeoutUs);
+    args.push(resolveRtspTimeoutFlag(settings.ffmpegPath), rtspIoTimeoutUs);
   } else {
     args.push("-rw_timeout", rtspIoTimeoutUs);
     args.push("-reconnect", "1");

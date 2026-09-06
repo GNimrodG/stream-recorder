@@ -11,13 +11,15 @@ import { EventEmitter } from "events";
 let recordingsStore: any[] = [];
 
 // Mock loadSettings
+const defaultTestSettings = {
+  outputDirectory: "./test_recordings",
+  outputFormat: "mp4",
+  ffmpegPath: "ffmpeg",
+  reconnectDelay: 1,
+};
+const loadSettingsMock = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/settings", () => ({
-  loadSettings: () => ({
-    outputDirectory: "./test_recordings",
-    outputFormat: "mp4",
-    ffmpegPath: "ffmpeg",
-    reconnectDelay: 1,
-  }),
+  loadSettings: (...args: unknown[]) => loadSettingsMock(...args),
 }));
 
 // Mock stream status checker
@@ -62,6 +64,8 @@ vi.mock("node:fs", async () => {
     mkdirSync: vi.fn(() => {}),
     appendFile: vi.fn((_p: string, _data: string, cb: (err?: Error | null) => void) => cb && cb(null)),
     writeFileSync: vi.fn(() => {}),
+    statSync: vi.fn(() => ({ size: 0 }) as ReturnType<typeof actual.statSync>),
+    unlinkSync: vi.fn(() => {}),
   };
 });
 
@@ -95,6 +99,7 @@ beforeEach(async () => {
   recordingsStore = [];
   spawnedProcesses.length = 0;
   checkStreamStatusMock.mockReset();
+  loadSettingsMock.mockReset().mockReturnValue(defaultTestSettings);
 
   // import fresh module to ensure static map is reset between tests
   const mod = await import("../src/lib/RecordingManager");
@@ -244,5 +249,71 @@ describe("RecordingManager - attempt recovery", () => {
     expect(recordingsStore[0].attemptPaths).toHaveLength(2);
     expect(recordingsStore[0].attemptPaths).toContain(recoveredPath);
     expect(recordingsStore[0].attemptPaths[1]).toContain("_attempt2.mp4");
+  });
+});
+
+describe("RecordingManager - retry backoff on repeated zero-frame failures", () => {
+  const flush = () => new Promise((resolve) => setImmediate(resolve));
+  const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  it("delays the retry instead of respawning FFmpeg immediately", async () => {
+    const id = "backoff-test";
+    const past = new Date(Date.now() - 2000).toISOString();
+    recordingsStore.push({ id, name: "TestCam", rtspUrl: "rtsp://testcam", startTime: past, duration: 6000 });
+    checkStreamStatusMock.mockResolvedValue("live");
+    loadSettingsMock.mockReturnValue({ ...defaultTestSettings, reconnectDelay: 1, reconnectAttempts: 5 });
+
+    new RecordingManager(id, "TestCam", "rtsp://testcam", past, 6000);
+    await flush();
+    expect(spawnedProcesses).toHaveLength(1);
+
+    spawnedProcesses[0].emit("close", 1, null); // no "frame=" was ever emitted on stderr
+    await flush();
+    expect(spawnedProcesses).toHaveLength(1); // must not respawn synchronously
+
+    await wait(1200);
+    expect(spawnedProcesses).toHaveLength(2); // respawns after the reconnectDelay backoff
+  });
+
+  it("gives up after reconnectAttempts consecutive zero-frame failures", async () => {
+    const id = "cap-test";
+    const past = new Date(Date.now() - 2000).toISOString();
+    recordingsStore.push({ id, name: "TestCam", rtspUrl: "rtsp://testcam", startTime: past, duration: 6000 });
+    checkStreamStatusMock.mockResolvedValue("live");
+    loadSettingsMock.mockReturnValue({ ...defaultTestSettings, reconnectDelay: 1, reconnectAttempts: 2 });
+
+    new RecordingManager(id, "TestCam", "rtsp://testcam", past, 6000);
+    await flush();
+    expect(spawnedProcesses).toHaveLength(1);
+
+    spawnedProcesses[0].emit("close", 1, null);
+    await wait(1200);
+    expect(spawnedProcesses).toHaveLength(2);
+
+    spawnedProcesses[1].emit("close", 1, null); // 2nd consecutive zero-frame failure hits the cap
+    await wait(1200);
+    expect(spawnedProcesses).toHaveLength(2); // no 3rd attempt — it gave up instead of retrying again
+
+    expect(recordingsStore[0].success).toBe(false);
+    expect(recordingsStore[0].errorMessage).toMatch(/failed to start 2 times in a row/);
+  });
+
+  it("retries immediately and resets the failure count once FFmpeg has produced a frame", async () => {
+    const id = "reset-test";
+    const past = new Date(Date.now() - 2000).toISOString();
+    recordingsStore.push({ id, name: "TestCam", rtspUrl: "rtsp://testcam", startTime: past, duration: 6000 });
+    checkStreamStatusMock.mockResolvedValue("live");
+    // A cap of 1 would give up on any zero-frame failure — proves this path never checks it.
+    loadSettingsMock.mockReturnValue({ ...defaultTestSettings, reconnectDelay: 1, reconnectAttempts: 1 });
+
+    new RecordingManager(id, "TestCam", "rtsp://testcam", past, 6000);
+    await flush();
+    expect(spawnedProcesses).toHaveLength(1);
+
+    spawnedProcesses[0].stderr.emit("data", "frame=10 fps=30 q=-1.0 size=100KiB time=00:00:01.00 bitrate=100kbits/s speed=1x");
+    spawnedProcesses[0].emit("close", 1, null);
+    await flush();
+
+    expect(spawnedProcesses).toHaveLength(2); // retried immediately, no backoff wait needed
   });
 });
