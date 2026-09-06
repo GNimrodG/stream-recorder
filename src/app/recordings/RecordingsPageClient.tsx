@@ -32,6 +32,7 @@ import RefreshIcon from "@mui/icons-material/Refresh";
 import DownloadIcon from "@mui/icons-material/Download";
 import PreviewIcon from "@mui/icons-material/Visibility";
 import ArticleIcon from "@mui/icons-material/Article";
+import TimelineIcon from "@mui/icons-material/Timeline";
 import EditIcon from "@mui/icons-material/Edit";
 import FolderIcon from "@mui/icons-material/Folder";
 import PlayCircleIcon from "@mui/icons-material/PlayCircle";
@@ -45,6 +46,7 @@ import {
 } from "@/types/recording";
 import RecordingDialog from "@/components/dialogs/RecordingDialog";
 import RecordingLogsDialog from "@/components/dialogs/RecordingLogsDialog";
+import RecordingGapsDialog from "@/components/dialogs/RecordingGapsDialog";
 import StatusDisplay from "@/components/StatusDisplay";
 import RecordingPreviewDialog from "@/components/dialogs/RecordingPreviewDialog";
 import { formatDate } from "@/utils";
@@ -104,6 +106,7 @@ export default function RecordingsPageClient({
   const [recordingDialogState, setRecordingDialogState] = useState<RecordingDialogState | null>(null);
   const [previewRecording, setPreviewRecording] = useState<RecordingWithStatus | null>(null);
   const [logsRecording, setLogsRecording] = useState<RecordingWithStatus | null>(null);
+  const [gapsRecording, setGapsRecording] = useState<RecordingWithStatus | null>(null);
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
     message: string;
@@ -710,6 +713,11 @@ export default function RecordingsPageClient({
                             <ArticleIcon />
                           </IconButton>
                         </Tooltip>
+                        <Tooltip title="Connection timeline">
+                          <IconButton color="inherit" size="small" onClick={() => setGapsRecording(recording)}>
+                            <TimelineIcon />
+                          </IconButton>
+                        </Tooltip>
                         <Tooltip title="Delete">
                           <IconButton color="error" size="small" onClick={() => handleDeleteRecording(recording.id)}>
                             <DeleteIcon />
@@ -759,6 +767,12 @@ export default function RecordingsPageClient({
         open={!!logsRecording}
         onCloseAction={() => setLogsRecording(null)}
         recording={logsRecording}
+      />
+
+      <RecordingGapsDialog
+        open={!!gapsRecording}
+        onCloseAction={() => setGapsRecording(null)}
+        recording={gapsRecording}
       />
 
       <Snackbar open={snackbar.open} autoHideDuration={6000} onClose={() => setSnackbar({ ...snackbar, open: false })}>

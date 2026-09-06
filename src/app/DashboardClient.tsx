@@ -40,7 +40,9 @@ import RecordingTimeline, { RecordingTimelineHandle } from "@/components/dashboa
 import TimelineActionPair from "@/components/dashboard/TimelineActionPair";
 import { STATUS_COLORS } from "@/theme";
 import ArticleIcon from "@mui/icons-material/Article";
+import TimelineIcon from "@mui/icons-material/Timeline";
 import RecordingLogsDialog from "@/components/dialogs/RecordingLogsDialog";
+import RecordingGapsDialog from "@/components/dialogs/RecordingGapsDialog";
 import DurationDisplay from "@/components/DurationDisplay";
 
 type Props = {
@@ -67,6 +69,7 @@ export default function DashboardClient({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingRecording, setEditingRecording] = useState<RecordingWithStatus | null>(null);
   const [logsRecording, setLogsRecording] = useState<RecordingWithStatus | null>(null);
+  const [gapsRecording, setGapsRecording] = useState<RecordingWithStatus | null>(null);
   const [currentTime, setCurrentTime] = useState(initialNow.iso);
   const [currentTimeLabel, setCurrentTimeLabel] = useState(initialNow.label);
   const [snackbar, setSnackbar] = useState<{
@@ -592,6 +595,11 @@ export default function DashboardClient({
                               <ArticleIcon />
                             </IconButton>
                           </Tooltip>
+                          <Tooltip title="Connection timeline">
+                            <IconButton color="inherit" size="small" onClick={() => setGapsRecording(recording)}>
+                              <TimelineIcon />
+                            </IconButton>
+                          </Tooltip>
                           <Tooltip title="Delete">
                             <IconButton color="error" onClick={() => handleDeleteRecording(recording.id)}>
                               <DeleteIcon />
@@ -621,6 +629,12 @@ export default function DashboardClient({
         open={!!logsRecording}
         onCloseAction={() => setLogsRecording(null)}
         recording={logsRecording}
+      />
+
+      <RecordingGapsDialog
+        open={!!gapsRecording}
+        onCloseAction={() => setGapsRecording(null)}
+        recording={gapsRecording}
       />
 
       <Snackbar open={snackbar.open} autoHideDuration={4000} onClose={() => setSnackbar({ ...snackbar, open: false })}>
