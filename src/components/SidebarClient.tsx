@@ -22,6 +22,7 @@ import LiveTvIcon from "@mui/icons-material/LiveTv";
 import LinkIcon from "@mui/icons-material/Link";
 import UserProfileClient from "./UserProfileClient";
 import type { Session } from "next-auth";
+import { formatDate } from "@/utils";
 
 export const drawerWidth = 240;
 
@@ -82,6 +83,11 @@ export default function SidebarClient({ currentPath, session, instanceName, host
       </List>
       <Divider />
       <UserProfileClient session={session} />
+      {!!process.env.NEXT_PUBLIC_BUILD_DATE && (
+        <Typography variant="caption" color="text.secondary" align="center" sx={{ pb: 1 }}>
+          Built {formatDate(process.env.NEXT_PUBLIC_BUILD_DATE)}
+        </Typography>
+      )}
     </Box>
   );
 

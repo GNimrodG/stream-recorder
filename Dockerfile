@@ -8,6 +8,12 @@ FROM base AS builder
 
 WORKDIR /app
 
+# When set by the pipeline (see .github/workflows/build.yml), captures the time this image
+# was built so the running app can display it. Falls back to the container's own clock
+# (via next.config.ts) when built manually without this arg.
+ARG BUILD_DATE
+ENV NEXT_PUBLIC_BUILD_DATE=$BUILD_DATE
+
 # Copy package files
 COPY package.json yarn.lock ./
 

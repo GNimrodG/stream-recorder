@@ -89,6 +89,9 @@ jobs:
           registry: ${{ vars.DOCKER_REGISTRY_URL }}
           username: ${{ secrets.DOCKER_REGISTRY_USERNAME }}
           password: ${{ secrets.DOCKER_REGISTRY_TOKEN }}
+      - name: Set build date
+        id: build_date
+        run: echo "value=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
       - name: Build
         uses: docker/build-push-action@v6
         with:
@@ -96,6 +99,8 @@ jobs:
           push: ${{ env.SHOULD_PUSH == 'true' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            BUILD_DATE=${{ steps.build_date.outputs.value }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
