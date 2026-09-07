@@ -34,6 +34,7 @@ interface RecordingDialogProps {
   onFormChange: (data: CreateRecordingDto) => void;
   title?: string;
   submitLabel?: string;
+  initialStreamId?: string;
 }
 
 export default function RecordingDialog({
@@ -44,6 +45,7 @@ export default function RecordingDialog({
   onFormChange,
   title = "Schedule New Recording",
   submitLabel = "Schedule Recording",
+  initialStreamId = "",
 }: Readonly<RecordingDialogProps>) {
   const [selectedStreamId, setSelectedStreamId] = useState<string>("");
   const [savedStreams, setSavedStreams] = useState<SavedStream[]>([]);
@@ -55,7 +57,7 @@ export default function RecordingDialog({
         const response = await fetch("/api/streams");
         const data = await response.json();
         setSavedStreams(data);
-        setSelectedStreamId("");
+        setSelectedStreamId(initialStreamId);
       } catch (error) {
         console.error("Failed to fetch saved streams:", error);
       }
@@ -64,7 +66,7 @@ export default function RecordingDialog({
     if (open) {
       fetchSavedStreams().then();
     }
-  }, [open]);
+  }, [open, initialStreamId]);
 
   const onStartTimeChange = useCallback(
     (date: Date | null) => {

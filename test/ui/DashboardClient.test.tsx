@@ -7,6 +7,10 @@ import { describe, expect, it, vi } from "vitest";
 import DashboardClient from "@/app/DashboardClient";
 import type { RecordingStats, RecordingWithStatus } from "@/types/recording";
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+}));
+
 describe("DashboardClient", () => {
   it("edits a scheduled recording from the dashboard", async () => {
     const user = userEvent.setup();

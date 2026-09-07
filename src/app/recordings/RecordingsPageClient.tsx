@@ -11,33 +11,14 @@ import {
   IconButton,
   Paper,
   Snackbar,
-  Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
   TablePagination,
-  TableRow,
   Tooltip,
   Typography,
 } from "@mui/material";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 import AddIcon from "@mui/icons-material/Add";
-import PlayArrowIcon from "@mui/icons-material/PlayArrow";
-import StopIcon from "@mui/icons-material/Stop";
-import DeleteIcon from "@mui/icons-material/Delete";
 import RefreshIcon from "@mui/icons-material/Refresh";
-import DownloadIcon from "@mui/icons-material/Download";
-import PreviewIcon from "@mui/icons-material/Visibility";
-import ArticleIcon from "@mui/icons-material/Article";
-import TimelineIcon from "@mui/icons-material/Timeline";
-import EditIcon from "@mui/icons-material/Edit";
-import FolderIcon from "@mui/icons-material/Folder";
-import PlayCircleIcon from "@mui/icons-material/PlayCircle";
-import SensorsIcon from "@mui/icons-material/Sensors";
-import SensorsOffIcon from "@mui/icons-material/SensorsOff";
 import {
   CreateRecordingDto,
   RecordingFilterStatus,
@@ -47,12 +28,10 @@ import {
 import RecordingDialog from "@/components/dialogs/RecordingDialog";
 import RecordingLogsDialog from "@/components/dialogs/RecordingLogsDialog";
 import RecordingGapsDialog from "@/components/dialogs/RecordingGapsDialog";
-import StatusDisplay from "@/components/StatusDisplay";
 import RecordingPreviewDialog from "@/components/dialogs/RecordingPreviewDialog";
-import { formatDate } from "@/utils";
 import CustomChip from "@/components/CustomChip";
 import { STATUS_COLORS } from "@/theme";
-import DurationDisplay from "@/components/DurationDisplay";
+import RecordingsTable from "@/components/recordings/RecordingsTable";
 
 const FILTERS: RecordingFilterStatus[] = [
   "all",
@@ -74,8 +53,6 @@ type Props = {
   initialRecordings: RecordingWithStatus[];
   initialPagination: RecordingPaginationMeta;
   initialStatus: RecordingFilterStatus;
-  initialName?: string;
-  initialRtspUrl?: string;
 };
 
 type RecordingDialogState =
@@ -91,8 +68,6 @@ export default function RecordingsPageClient({
   initialRecordings,
   initialPagination,
   initialStatus,
-  initialName,
-  initialRtspUrl,
 }: Readonly<Props>) {
   const router = useRouter();
   const pathname = usePathname();
@@ -128,7 +103,7 @@ export default function RecordingsPageClient({
   const isEditDialog = recordingDialogState?.mode === "edit";
 
   const replaceQuery = useCallback(
-    (next: { page: number; pageSize: number; status: RecordingFilterStatus }, clearPrefill = false) => {
+    (next: { page: number; pageSize: number; status: RecordingFilterStatus }) => {
       const params = new URLSearchParams(searchParams.toString());
 
       if (next.status === "all") {
@@ -147,11 +122,6 @@ export default function RecordingsPageClient({
         params.delete("pageSize");
       } else {
         params.set("pageSize", String(next.pageSize));
-      }
-
-      if (clearPrefill) {
-        params.delete("name");
-        params.delete("rtspUrl");
       }
 
       const query = params.toString();
@@ -185,28 +155,6 @@ export default function RecordingsPageClient({
     },
     [],
   );
-
-  // Open the create dialog with pre-filled URL params and clean up those params afterwards.
-  useEffect(() => {
-    if (!initialName && !initialRtspUrl) {
-      return;
-    }
-
-    setFormData((prev) => ({
-      ...prev,
-      name: initialName || prev.name,
-      rtspUrl: initialRtspUrl || prev.rtspUrl,
-    }));
-    setRecordingDialogState({ mode: "create" });
-    replaceQuery(
-      {
-        page: pagination.page,
-        pageSize: pagination.pageSize,
-        status: filterStatus,
-      },
-      true,
-    );
-  }, [filterStatus, initialName, initialRtspUrl, pagination.page, pagination.pageSize, replaceQuery]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -508,229 +456,20 @@ export default function RecordingsPageClient({
           </Button>
         </Box>
 
-        <TableContainer>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell sx={{ width: { xs: "auto", md: "30%" } }}>Name</TableCell>
-                <TableCell sx={{ width: { xs: "auto", md: "10%" } }}>Stream URL</TableCell>
-                <TableCell sx={{ width: { xs: "auto", md: "10%" } }}>Start Time</TableCell>
-                <TableCell sx={{ width: { xs: "auto", md: "5%" } }}>Duration</TableCell>
-                <TableCell sx={{ width: { xs: "auto", md: "40%" } }}>Status</TableCell>
-                <TableCell sx={{ width: { xs: "auto", md: "15%" } }}>Ended At</TableCell>
-                <TableCell sx={{ width: { xs: "auto", md: "20%" }, minWidth: 0 }}>Output</TableCell>
-                <TableCell align="right">Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {loading ? (
-                <TableRow>
-                  <TableCell colSpan={8} align="center">
-                    <CircularProgress />
-                  </TableCell>
-                </TableRow>
-              ) : recordings.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} align="center">
-                    No recordings found.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                recordings.map((recording) => (
-                  <TableRow key={recording.id}>
-                    {/* Name */}
-                    <TableCell>
-                      <Typography variant="body2" fontWeight="medium">
-                        {recording.name}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        Created: {formatDate(recording.createdAt)}
-                      </Typography>
-                    </TableCell>
-                    {/* RTSP URL */}
-                    <TableCell>
-                      <Tooltip title={recording.rtspUrl}>
-                        <Typography
-                          variant="body2"
-                          sx={{
-                            maxWidth: 200,
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                          }}>
-                          {recording.rtspUrl}
-                        </Typography>
-                      </Tooltip>
-                    </TableCell>
-                    {/* Start Time */}
-                    <TableCell>{formatDate(recording.startTime)}</TableCell>
-                    {/* Duration */}
-                    <TableCell>
-                      <DurationDisplay recording={recording} />
-                    </TableCell>
-                    {/* Status */}
-                    <TableCell>
-                      <Stack direction="row" alignItems="center">
-                        <StatusDisplay recording={recording} />
-                      </Stack>
-                    </TableCell>
-                    {/* Ended At */}
-                    <TableCell>
-                      {recording.endedAt ? (
-                        <Tooltip title={recording.endedAt}>
-                          <Typography variant="caption">{formatDate(recording.endedAt)}</Typography>
-                        </Tooltip>
-                      ) : (
-                        <Typography variant="caption" color="text.secondary">
-                          -
-                        </Typography>
-                      )}
-                    </TableCell>
-                    {/* Output Path */}
-                    <TableCell>
-                      {recording.outputPath ? (
-                        <Tooltip title={recording.outputPath}>
-                          <Box
-                            sx={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 0.5,
-                            }}>
-                            <FolderIcon fontSize="small" color="action" />
-                            <Typography
-                              variant="caption"
-                              sx={{
-                                maxWidth: "30rem",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                                whiteSpace: "nowrap",
-                              }}>
-                              {recording.outputPath.split("/").pop()}
-                            </Typography>
-                          </Box>
-                        </Tooltip>
-                      ) : (
-                        <Typography variant="caption" color="text.secondary">
-                          -
-                        </Typography>
-                      )}
-                    </TableCell>
-                    {/* Actions */}
-                    <TableCell align="right">
-                      <Box
-                        sx={{
-                          display: "flex",
-                          justifyContent: "flex-end",
-                          gap: 0.5,
-                        }}>
-                        {recording.status === "recording" && (
-                          <Tooltip title="Preview Stream">
-                            <IconButton color="info" size="small" onClick={() => handlePreviewClick(recording)}>
-                              <PreviewIcon />
-                            </IconButton>
-                          </Tooltip>
-                        )}
-
-                        {(recording.status === "recording" || recording.status === "retrying") && (
-                          <Tooltip title="Stop">
-                            <IconButton color="error" size="small" onClick={() => handleStopRecording(recording.id)}>
-                              <StopIcon />
-                            </IconButton>
-                          </Tooltip>
-                        )}
-                        {recording.status !== "failed" &&
-                          recording.status !== "cancelled" &&
-                          recording.status !== "completed" &&
-                          (recording.isIgnoringLiveStatus ? (
-                            <Tooltip title="Enable live status check">
-                              <IconButton
-                                color="success"
-                                size="small"
-                                onClick={() => handleIgnoreLiveStatus(recording)}>
-                                <SensorsIcon />
-                              </IconButton>
-                            </Tooltip>
-                          ) : (
-                            <Tooltip title="Ignore live status check">
-                              <IconButton
-                                color="warning"
-                                size="small"
-                                onClick={() => handleIgnoreLiveStatus(recording)}>
-                                <SensorsOffIcon />
-                              </IconButton>
-                            </Tooltip>
-                          ))}
-                        {recording.status === "scheduled" && (
-                          <>
-                            <Tooltip title="Start Now">
-                              <IconButton
-                                color="warning"
-                                size="small"
-                                onClick={() => handleStartRecording(recording.id)}>
-                                <PlayArrowIcon />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Edit">
-                              <IconButton color="primary" size="small" onClick={() => handleEditClick(recording)}>
-                                <EditIcon />
-                              </IconButton>
-                            </Tooltip>
-                          </>
-                        )}
-                        {recording.status === "completed" && recording.outputPath && (
-                          <>
-                            <Tooltip title="Watch">
-                              <IconButton
-                                color="success"
-                                size="small"
-                                component="a"
-                                href={`/viewer?recordingId=${recording.id}`}>
-                                <PlayCircleIcon />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Edit Video">
-                              <IconButton
-                                color="secondary"
-                                size="small"
-                                onClick={() => router.push(`/editor/${recording.id}`)}>
-                                <EditIcon />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Download">
-                              <IconButton
-                                color="primary"
-                                size="small"
-                                component="a"
-                                href={`/api/recordings/${recording.id}/download`}
-                                download>
-                                <DownloadIcon />
-                              </IconButton>
-                            </Tooltip>
-                          </>
-                        )}
-                        <Tooltip title="View Logs">
-                          <IconButton color="inherit" size="small" onClick={() => setLogsRecording(recording)}>
-                            <ArticleIcon />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Connection timeline">
-                          <IconButton color="inherit" size="small" onClick={() => setGapsRecording(recording)}>
-                            <TimelineIcon />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Delete">
-                          <IconButton color="error" size="small" onClick={() => handleDeleteRecording(recording.id)}>
-                            <DeleteIcon />
-                          </IconButton>
-                        </Tooltip>
-                      </Box>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
+        <RecordingsTable
+          recordings={recordings}
+          loading={loading}
+          variant="full"
+          emptyMessage="No recordings found."
+          onEdit={handleEditClick}
+          onStart={handleStartRecording}
+          onStop={handleStopRecording}
+          onDelete={handleDeleteRecording}
+          onViewLogs={setLogsRecording}
+          onViewGaps={setGapsRecording}
+          onPreview={handlePreviewClick}
+          onIgnoreLiveStatus={handleIgnoreLiveStatus}
+        />
 
         <TablePagination
           component="div"

@@ -46,18 +46,8 @@ export default async function RecordingsPage({ searchParams }: { searchParams?: 
   const page = parsePositiveInt(firstValue(resolvedSearchParams.page), 1);
   const pageSize = parsePositiveInt(firstValue(resolvedSearchParams.pageSize), 10);
   const status = parseStatus(firstValue(resolvedSearchParams.status));
-  const initialName = firstValue(resolvedSearchParams.name);
-  const initialRtspUrl = firstValue(resolvedSearchParams.rtspUrl);
 
   const { data, pagination } = getPaginatedRecordingsWithStats({ page, pageSize, status });
 
-  return (
-    <RecordingsPageClient
-      initialRecordings={data}
-      initialPagination={pagination}
-      initialStatus={status}
-      initialName={initialName}
-      initialRtspUrl={initialRtspUrl}
-    />
-  );
+  return <RecordingsPageClient initialRecordings={data} initialPagination={pagination} initialStatus={status} />;
 }

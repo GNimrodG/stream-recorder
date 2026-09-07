@@ -34,6 +34,8 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
+import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
+import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -44,9 +46,12 @@ import VideocamIcon from "@mui/icons-material/Videocam";
 import LinkIcon from "@mui/icons-material/Link";
 import StarIcon from "@mui/icons-material/Star";
 import RadioButtonCheckedIcon from "@mui/icons-material/RadioButtonChecked";
+import { useRouter } from "next/navigation";
 import { SavedStream, StreamStatusResult } from "@/types/stream";
+import { CreateRecordingDto } from "@/types/recording";
 import { formatDate } from "@/utils";
 import StreamStatusChip from "@/components/StreamStatusChip";
+import RecordingDialog from "@/components/dialogs/RecordingDialog";
 import { useSyncPeers } from "@/hooks/useSyncPeers";
 
 type Props = {
@@ -73,12 +78,22 @@ function maskStreamCredentials(streamUrl: string): string {
 }
 
 export default function StreamsPageClient({ initialStreams }: Readonly<Props>) {
+  const router = useRouter();
   const [streams, setStreams] = useState<SavedStream[]>(initialStreams);
   const [streamStatuses, setStreamStatuses] = useState<Record<string, StreamStatusResult>>({});
   const [loading, setLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [selectedStream, setSelectedStream] = useState<SavedStream | null>(null);
+  const [quickRecordDialogOpen, setQuickRecordDialogOpen] = useState(false);
+  const [quickRecordStreamId, setQuickRecordStreamId] = useState("");
+  const [quickRecordFormData, setQuickRecordFormData] = useState<CreateRecordingDto>({
+    name: "",
+    rtspUrl: "",
+    startTime: new Date().toISOString(),
+    duration: 3600,
+    ignoreDuration: false,
+  });
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
     message: string;
@@ -292,12 +307,43 @@ export default function StreamsPageClient({ initialStreams }: Readonly<Props>) {
   };
 
   const handleQuickRecord = (stream: SavedStream) => {
-    // Navigate to recordings page with pre-filled data
-    const params = new URLSearchParams({
+    setQuickRecordFormData({
       name: stream.name,
       rtspUrl: stream.rtspUrl,
+      startTime: new Date().toISOString(),
+      duration: 3600,
+      ignoreDuration: false,
     });
-    window.location.href = `/recordings?${params.toString()}`;
+    setQuickRecordStreamId(stream.id);
+    setQuickRecordDialogOpen(true);
+  };
+
+  const handleCloseQuickRecordDialog = () => {
+    setQuickRecordDialogOpen(false);
+  };
+
+  const handleCreateQuickRecording = async () => {
+    try {
+      const response = await fetch("/api/recordings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(quickRecordFormData),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to create recording");
+      }
+
+      setQuickRecordDialogOpen(false);
+      router.push("/recordings");
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: (error as Error).message,
+        severity: "error",
+      });
+    }
   };
 
   const handleCheckStream = async (stream: SavedStream) => {
@@ -725,6 +771,20 @@ export default function StreamsPageClient({ initialStreams }: Readonly<Props>) {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Quick Record Dialog */}
+      <LocalizationProvider dateAdapter={AdapterDateFns}>
+        <RecordingDialog
+          open={quickRecordDialogOpen}
+          onClose={handleCloseQuickRecordDialog}
+          onSubmit={handleCreateQuickRecording}
+          formData={quickRecordFormData}
+          onFormChange={setQuickRecordFormData}
+          title="Schedule New Recording"
+          submitLabel="Schedule Recording"
+          initialStreamId={quickRecordStreamId}
+        />
+      </LocalizationProvider>
 
       {/* Stream Snapshot Dialog */}
       <Dialog open={!!previewImage} onClose={() => setPreviewImage(null)} maxWidth="md" fullWidth>
