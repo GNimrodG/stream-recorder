@@ -28,7 +28,15 @@ export const formatDuration = (seconds: number) => {
  * @returns A formatted date string like "9/1/2024, 10:00:00 AM"
  */
 export const formatDate = (dateString: string) => {
-  return new Date(dateString).toLocaleString();
+  return new Date(dateString).toLocaleString("en-CA", {
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
 };
 
 /**

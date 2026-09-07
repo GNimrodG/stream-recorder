@@ -41,7 +41,7 @@ type Props = {
   hostname: string;
 };
 
-export default function SidebarClient({ currentPath, session, instanceName, hostname }: Props) {
+export default function SidebarClient({ currentPath, session, instanceName, hostname }: Readonly<Props>) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const handleDrawerToggle = () => {

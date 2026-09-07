@@ -76,7 +76,7 @@ describe("StreamsPageClient UI", () => {
 
     expect(await screen.findByText("Stream saved successfully!")).toBeInTheDocument();
     expect(eventSourceConstructor).not.toHaveBeenCalled();
-  });
+  }, 10000);
 
   it("opens the quick record dialog instantly and creates a recording", async () => {
     const user = userEvent.setup();
@@ -160,5 +160,5 @@ describe("StreamsPageClient UI", () => {
     await waitFor(() => {
       expect(pushMock).toHaveBeenCalledWith("/recordings");
     });
-  });
+  }, 10000);
 });

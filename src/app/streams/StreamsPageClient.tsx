@@ -772,19 +772,23 @@ export default function StreamsPageClient({ initialStreams }: Readonly<Props>) {
         </DialogActions>
       </Dialog>
 
-      {/* Quick Record Dialog */}
-      <LocalizationProvider dateAdapter={AdapterDateFns}>
-        <RecordingDialog
-          open={quickRecordDialogOpen}
-          onClose={handleCloseQuickRecordDialog}
-          onSubmit={handleCreateQuickRecording}
-          formData={quickRecordFormData}
-          onFormChange={setQuickRecordFormData}
-          title="Schedule New Recording"
-          submitLabel="Schedule Recording"
-          initialStreamId={quickRecordStreamId}
-        />
-      </LocalizationProvider>
+      {/* Quick Record Dialog. Only mounted while open: RecordingDialog pulls in a handful of
+          MUI X date pickers and its own data fetching, so keeping it out of the tree the rest
+          of the time avoids re-rendering all of that on every keystroke elsewhere on this page. */}
+      {quickRecordDialogOpen && (
+        <LocalizationProvider dateAdapter={AdapterDateFns}>
+          <RecordingDialog
+            open={quickRecordDialogOpen}
+            onClose={handleCloseQuickRecordDialog}
+            onSubmit={handleCreateQuickRecording}
+            formData={quickRecordFormData}
+            onFormChange={setQuickRecordFormData}
+            title="Schedule New Recording"
+            submitLabel="Schedule Recording"
+            initialStreamId={quickRecordStreamId}
+          />
+        </LocalizationProvider>
+      )}
 
       {/* Stream Snapshot Dialog */}
       <Dialog open={!!previewImage} onClose={() => setPreviewImage(null)} maxWidth="md" fullWidth>
