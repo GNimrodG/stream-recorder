@@ -2,6 +2,8 @@ import fs from "node:fs/promises";
 import { loadSettings } from "@/lib/settings";
 import { getAllRecordings, saveRecordings } from "@/lib/recordings";
 import { Recording } from "@/types/recording";
+import { getLocalInstanceId } from "@/lib/instanceIdentity";
+import { toLocalRecordingView } from "@/lib/recordingExecution";
 
 async function existsAsync(path: string): Promise<boolean> {
   try {
@@ -16,7 +18,8 @@ async function existsAsync(path: string): Promise<boolean> {
  * Get the total size of all recordings in GB
  */
 export async function getTotalStorageUsed(): Promise<number> {
-  const recordings = getAllRecordings();
+  const localInstanceId = getLocalInstanceId();
+  const recordings = getAllRecordings().map((recording) => toLocalRecordingView(recording, localInstanceId));
   let totalBytes = 0;
 
   for (const recording of recordings) {
@@ -70,13 +73,17 @@ export async function cleanupOldRecordings(): Promise<number> {
   }
 
   const recordings = getAllRecordings();
+  const localInstanceId = getLocalInstanceId();
   const now = new Date();
   const cutoffDate = new Date(now.getTime() - settings.autoDeleteAfterDays * 24 * 60 * 60 * 1000);
 
   let deletedCount = 0;
   const recordingsToKeep: Recording[] = [];
 
-  for (const recording of recordings) {
+  for (const storedRecording of recordings) {
+    // Decide on this instance's own result, but keep/drop the stored record itself
+    const recording = toLocalRecordingView(storedRecording, localInstanceId);
+
     // Only delete completed recordings
     if (recording.completedAt) {
       const completedDate = new Date(recording.completedAt);
@@ -89,7 +96,7 @@ export async function cleanupOldRecordings(): Promise<number> {
           } catch (error) {
             console.error(`Failed to delete ${recording.outputPath}:`, error);
             // Keep the recording in DB if we couldn't delete the file
-            recordingsToKeep.push(recording);
+            recordingsToKeep.push(storedRecording);
             continue;
           }
         }
@@ -97,7 +104,7 @@ export async function cleanupOldRecordings(): Promise<number> {
         continue;
       }
     }
-    recordingsToKeep.push(recording);
+    recordingsToKeep.push(storedRecording);
   }
 
   if (deletedCount > 0) {
@@ -128,9 +135,11 @@ export async function enforceStorageLimit(): Promise<number> {
   }
 
   const recordings = getAllRecordings();
+  const localInstanceId = getLocalInstanceId();
 
   // Get completed recordings sorted by completion date (oldest first)
   const completedRecordings = recordings
+    .map((recording) => toLocalRecordingView(recording, localInstanceId))
     .filter((r) => r.completedAt && r.outputPath)
     .sort((a, b) => {
       const dateA = new Date(a.completedAt!).getTime();

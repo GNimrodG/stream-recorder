@@ -3,6 +3,7 @@ import { createRecording, getAllRecordings } from "@/lib/recordings";
 import { checkStreamStatus } from "@/lib/rtsp";
 import { getAllStreams } from "@/lib/streams";
 import { getLocalInstanceId, shouldExecuteLocally } from "@/lib/instanceIdentity";
+import { isPendingLocally } from "@/lib/recordingExecution";
 
 const STATUS_CHECK_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 const AUTO_RECORDING_DURATION_SECONDS = 24 * 60 * 60; // 24 hours
@@ -43,7 +44,7 @@ function rehydrateActiveAutoRecordings() {
     if (
       !recording.autoStopWhenStreamOffline ||
       !recording.sourceStreamId ||
-      recording.success !== undefined ||
+      !isPendingLocally(recording, localInstanceId) ||
       !shouldExecuteLocally(recording, localInstanceId)
     ) {
       continue;

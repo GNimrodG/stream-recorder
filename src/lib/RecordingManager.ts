@@ -10,6 +10,7 @@ import { ChildProcessWithoutNullStreams, spawn } from "node:child_process";
 import { getAllRecordings, saveRecordings } from "@/lib/recordings";
 import { getStreamUrlKind, isSupportedStreamUrl, normalizeStreamUrl, supportedStreamUrlError } from "@/lib/streamUrl";
 import { getLocalInstanceId, shouldExecuteLocally } from "@/lib/instanceIdentity";
+import { getLocalExecutionResult, setLocalExecutionResult } from "@/lib/recordingExecution";
 
 type RecordingManagerGlobal = typeof globalThis & {
   __streamRecorderRecordingManagers?: Map<string, RecordingManager>;
@@ -663,9 +664,7 @@ export class RecordingManager {
       const maxFailedStarts = settings.reconnectAttempts;
 
       if (maxFailedStarts !== -1 && this.consecutiveFailedStarts >= maxFailedStarts) {
-        this.log(
-          `FFmpeg failed to produce any frames ${this.consecutiveFailedStarts} time(s) in a row. Giving up.`,
-        );
+        this.log(`FFmpeg failed to produce any frames ${this.consecutiveFailedStarts} time(s) in a row. Giving up.`);
         this.status = this.attemptPaths.length > 0 ? "completed" : "failed";
         this.finish(
           `FFmpeg failed to start ${this.consecutiveFailedStarts} times in a row.` +
@@ -733,7 +732,7 @@ export class RecordingManager {
       return;
     }
 
-    recording.attemptPaths = [...this.attemptPaths];
+    setLocalExecutionResult(recording, getLocalInstanceId(), { attemptPaths: [...this.attemptPaths] });
     saveRecordings(recordings);
   }
 
@@ -744,9 +743,11 @@ export class RecordingManager {
 
     const recordings = getAllRecordings();
     const recording = recordings.find((r) => r.id === this.id);
+    const localInstanceId = getLocalInstanceId();
+    const previousResult = recording ? getLocalExecutionResult(recording, localInstanceId) : undefined;
 
-    if (recording?.success !== undefined) {
-      this.log(`Recording is already marked as ${recording.success ? "completed" : "failed"}, skipping finish.`);
+    if (previousResult?.success !== undefined) {
+      this.log(`Recording is already marked as ${previousResult.success ? "completed" : "failed"}, skipping finish.`);
       return;
     }
 
@@ -782,18 +783,20 @@ export class RecordingManager {
       return;
     }
 
-    if (!shouldExecuteLocally(recording, getLocalInstanceId())) {
+    if (!shouldExecuteLocally(recording, localInstanceId)) {
       this.log(`Recording ${this.id} is no longer executed by this instance; discarding local result.`);
       return;
     }
 
-    recording.success = this.status !== "failed" && this.attemptPaths.length > 0;
-    recording.outputPath = fs.existsSync(this.FINAL_FILE_PATH) ? this.FINAL_FILE_PATH : undefined;
-    recording.errorMessage = errorMessage;
-    recording.attemptPaths = [...this.attemptPaths];
+    setLocalExecutionResult(recording, localInstanceId, {
+      success: this.status !== "failed" && this.attemptPaths.length > 0,
+      outputPath: fs.existsSync(this.FINAL_FILE_PATH) ? this.FINAL_FILE_PATH : undefined,
+      errorMessage,
+      attemptPaths: [...this.attemptPaths],
+      completedAt: completedAt?.toISOString() || new Date().toISOString(),
+      endedAt: this.recordingEndedAt,
+    });
     recording.updatedAt = new Date().toISOString();
-    recording.completedAt = completedAt?.toISOString() || new Date().toISOString();
-    recording.endedAt = this.recordingEndedAt;
 
     saveRecordings(recordings);
   }
