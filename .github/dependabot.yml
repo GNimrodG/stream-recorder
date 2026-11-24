@@ -1,0 +1,11 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    # Security updates only, as before this file existed: 0 turns off routine version-update PRs,
+    # while security-update PRs still pick up the settings below.
+    open-pull-requests-limit: 0
+    assignees:
+      - "GNimrodG"
