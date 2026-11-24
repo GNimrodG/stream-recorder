@@ -6,6 +6,7 @@ import { getAllStreams, replaceAllStreams } from "@/lib/streams";
 import { getTombstonesForCollection, replaceTombstonesForCollection } from "@/lib/syncTombstones";
 import { mergeCollection } from "@/lib/sync/merge";
 import { getLocalInstanceId } from "@/lib/instanceIdentity";
+import { mergeInstanceResults } from "@/lib/recordingExecution";
 
 /**
  * Merges an incoming batch of recordings/streams (and their tombstones) from a peer into the
@@ -29,7 +30,7 @@ export function applyIncomingSync(
       remoteItems: remoteRecordings.items,
       remoteTombstones: remoteRecordings.tombstones,
     },
-    context,
+    { ...context, combineItems: mergeInstanceResults },
   );
   saveRecordings(mergedRecordings.items);
   replaceTombstonesForCollection("recordings", mergedRecordings.tombstones);

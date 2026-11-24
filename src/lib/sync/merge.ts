@@ -12,10 +12,12 @@ interface MergeInput<T extends Syncable> {
   remoteTombstones: Tombstone[];
 }
 
-interface MergeContext {
+interface MergeContext<T extends Syncable> {
   /** Used as the item-vs-item tie-break fallback when an item predates originInstanceId. */
   localInstanceId?: string;
   remoteInstanceId?: string;
+  /** Folds per-instance data the losing copy carries into the winner when both sides have the item. Must be deterministic. */
+  combineItems?: (winner: T, other: T) => T;
 }
 
 interface MergeResult<T extends Syncable> {
@@ -44,7 +46,7 @@ function newestFact<T extends Syncable>(item: T | undefined, tombstone: Tombston
 export function mergeCollection<T extends Syncable>(
   collection: SyncCollection,
   input: MergeInput<T>,
-  context: MergeContext = {},
+  context: MergeContext<T> = {},
 ): MergeResult<T> {
   const { localItems, localTombstones, remoteItems, remoteTombstones } = input;
 
@@ -108,6 +110,9 @@ export function mergeCollection<T extends Syncable>(
     }
 
     if (winningItem) {
+      if (context.combineItems && localItem && remoteItem) {
+        winningItem = context.combineItems(winningItem, winningItem === localItem ? remoteItem : localItem);
+      }
       resultItems.push(winningItem);
     } else if (winningTombstone) {
       resultTombstones.push(winningTombstone);
