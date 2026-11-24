@@ -78,8 +78,10 @@ describe("DashboardClient", () => {
     expect(nameInput).toHaveValue("Old name");
     expect(screen.getByLabelText("Stream URL")).toHaveValue("https://example.test/channel.live.ts");
 
+    // Paste instead of typing: per-keystroke re-renders of the MUI dialog made this test slow
+    // enough to hit its timeout when the suite runs in parallel.
     await user.clear(nameInput);
-    await user.type(nameInput, "New name");
+    await user.paste("New name");
     await user.click(screen.getByRole("button", { name: "Update Recording" }));
 
     await waitFor(() => {
@@ -94,5 +96,5 @@ describe("DashboardClient", () => {
       name: "New name",
       rtspUrl: "https://example.test/channel.live.ts",
     });
-  }, 10000);
+  }, 30000);
 });

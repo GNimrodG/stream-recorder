@@ -13,6 +13,7 @@ import { runStorageCleanup } from "@/lib/storage";
 import { isSupportedStreamUrl, normalizeStreamUrl, supportedStreamUrlError } from "@/lib/streamUrl";
 import { getLocalInstanceId, isDeleteAuthoritative, shouldExecuteLocally } from "@/lib/instanceIdentity";
 import { addTombstone } from "@/lib/syncTombstones";
+import { getLocalExecutionResult, isPendingLocally, toLocalRecordingView } from "@/lib/recordingExecution";
 
 const RECORDINGS_FILE = process.env.RECORDINGS_DB_PATH || "./data/recordings.json";
 const RECORDINGS_OUTPUT_DIR = process.env.RECORDINGS_OUTPUT_DIR || "./recordings";
@@ -136,7 +137,8 @@ export function getAllRecordings(): Recording[] {
   return loadRecordings();
 }
 
-function getRecordingStatus(recording: Recording): RecordingWithStatus {
+function getRecordingStatus(storedRecording: Recording): RecordingWithStatus {
+  const recording = toLocalRecordingView(storedRecording, getLocalInstanceId());
   const manager = RecordingManager.getInstance(recording.id);
 
   if (!manager) {
@@ -200,9 +202,10 @@ export function getPaginatedRecordingsWithStats(options: {
   };
 }
 
+/** Returns the recording as this instance sees it (see toLocalRecordingView) — read-only, don't save it back. */
 export function getRecordingById(id: string): Recording | undefined {
-  const recordings = loadRecordings();
-  return recordings.find((r) => r.id === id);
+  const recording = loadRecordings().find((r) => r.id === id);
+  return recording && toLocalRecordingView(recording, getLocalInstanceId());
 }
 
 export function getRecordingWithStatsById(id: string): RecordingWithStatus | undefined {
@@ -282,7 +285,7 @@ export function reconcileRecordingExecution(): void {
 
   for (const recording of recordings) {
     if (
-      recording.success === undefined &&
+      isPendingLocally(recording, localInstanceId) &&
       shouldExecuteLocally(recording, localInstanceId) &&
       !RecordingManager.getInstance(recording.id)
     ) {
@@ -306,7 +309,7 @@ export function updateRecording(id: string, data: Partial<Recording>): Recording
   let recordingManager = RecordingManager.getInstance(id);
 
   if (!recordingManager) {
-    if (recordings[index].success === undefined) {
+    if (isPendingLocally(recordings[index], getLocalInstanceId())) {
       // If no manager exists but recording is pending, create a new manager to ensure it starts correctly
       recordingManager = createRecordingManager(recordings[index]);
     } else {
@@ -373,7 +376,9 @@ export function deleteRecording(id: string): boolean {
   const isLocal = shouldExecuteLocally(recording, localInstanceId);
 
   if (isLocal) {
-    if (recording.success === undefined) {
+    const localResult = getLocalExecutionResult(recording, localInstanceId);
+
+    if (localResult.success === undefined) {
       const recordingManager = RecordingManager.getInstance(id);
 
       if (recordingManager) {
@@ -383,8 +388,8 @@ export function deleteRecording(id: string): boolean {
 
     // Delete output file if exists — only meaningful when this instance actually recorded it;
     // a mirrored copy's outputPath refers to a file on the executing peer's disk, not this one.
-    if (recording.outputPath && fs.existsSync(recording.outputPath)) {
-      fs.unlinkSync(recording.outputPath);
+    if (localResult.outputPath && fs.existsSync(localResult.outputPath)) {
+      fs.unlinkSync(localResult.outputPath);
     }
   }
 
@@ -432,13 +437,13 @@ export function initializeRecordings(): void {
   const localInstanceId = getLocalInstanceId();
 
   recordings.forEach((recording) => {
-    if (recording.success === undefined && shouldExecuteLocally(recording, localInstanceId)) {
+    if (isPendingLocally(recording, localInstanceId) && shouldExecuteLocally(recording, localInstanceId)) {
       createRecordingManager(recording);
     }
   });
 
   console.log(
-    `Initialized recordings. Total: ${recordings.length}, Scheduled: ${recordings.filter((r) => r.success === undefined).length}`,
+    `Initialized recordings. Total: ${recordings.length}, Scheduled: ${recordings.filter((r) => isPendingLocally(r, localInstanceId)).length}`,
   );
 }
 
@@ -461,6 +466,6 @@ function createRecordingManager(recording: Recording): RecordingManager {
     recording.startTime,
     recording.duration,
     recording.ignoreDuration,
-    recording.attemptPaths,
+    getLocalExecutionResult(recording, getLocalInstanceId()).attemptPaths,
   );
 }

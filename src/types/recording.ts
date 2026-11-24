@@ -26,7 +26,16 @@ export interface Recording {
   attemptPaths?: string[]; // Part files retained for retry and process-restart recovery
   originInstanceId?: string; // Instance that created this recording (attribution only)
   executionInstanceId?: string; // Instance that should run FFmpeg for this recording, or the literal "all"
+  instanceResults?: Record<string, RecordingExecutionResult>; // Per-instance outcome of an "all"-instances recording, keyed by instance id
 }
+
+/** The part of a recording that describes one instance's execution of it, rather than what to record. */
+export type RecordingExecutionResult = Pick<
+  Recording,
+  "success" | "outputPath" | "completedAt" | "endedAt" | "errorMessage" | "attemptPaths"
+> & {
+  updatedAt?: string;
+};
 
 export interface RecordingWithStatus extends Recording {
   status: RecordingStatus;
