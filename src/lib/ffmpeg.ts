@@ -26,6 +26,9 @@ export function mergeRecordingParts(partPaths: string[], finalPath: string): boo
         throw new Error(`Failed to move ${single} to ${finalPath}: ${err}`);
       }
     }
+    if (path.extname(finalPath).toLowerCase() === ".mp4") {
+      remuxToFastStart(finalPath);
+    }
     return true;
   }
 
